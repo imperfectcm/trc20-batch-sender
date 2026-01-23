@@ -1,15 +1,21 @@
 import type { Metadata } from "next";
-import { Zalando_Sans, Stack_Sans_Notch } from "next/font/google";
-import "./globals.css";
+import { Quicksand, Quantico } from "next/font/google";
+import "./css/globals.css";
+import "./css/shadow.css";
 
-const zalandoSans = Zalando_Sans({
-  variable: "--font-zalando-sans",
+const quicksand = Quicksand({
   subsets: ['latin'],
+  variable: "--font-quicksand",
+  display: 'swap',
+  adjustFontFallback: false,
 });
 
-const stackSansNotch = Stack_Sans_Notch({
-  variable: "--font-stack-sans-notch",
+const quantico = Quantico({
+  weight: ['400', '700'],
   subsets: ['latin'],
+  variable: "--font-quantico",
+  display: 'swap',
+  adjustFontFallback: false,
 });
 
 export const metadata: Metadata = {
@@ -25,7 +31,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${stackSansNotch.variable} ${zalandoSans.variable} antialiased`}
+        className={`${quantico.variable} ${quicksand.variable} antialiased`}
       >
         {children}
       </body>
