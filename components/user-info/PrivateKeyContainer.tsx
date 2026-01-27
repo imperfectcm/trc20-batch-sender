@@ -8,6 +8,7 @@ export const PrivateKeyContainer = () => {
     const validatePrivateKey = useSenderStore((state) => state.validatePrivateKey);
     const setActive = useSenderStore((state) => state.setActive);
     const privateKeyActivated = useSenderStore((state) => state.active.privateKey);
+    const isLoading = useSenderStore((state) => state.isLoading);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setPrivateKey(e.target.value);
@@ -22,9 +23,8 @@ export const PrivateKeyContainer = () => {
 
     const inputType: "text" | "password" = privateKeyActivated ? "password" : "text";
 
-
     return (
-        <div className="w-full">
+        <section className="w-full">
             <InputEndInlineButton
                 label="Private Key"
                 placeholder="Your private key"
@@ -32,7 +32,8 @@ export const PrivateKeyContainer = () => {
                 handleClick={handleActivatePrivateKey}
                 type={inputType}
                 activated={privateKeyActivated}
+                isLoading={isLoading}
             />
-        </div>
+        </section>
     )
 }

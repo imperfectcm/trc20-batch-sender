@@ -4,7 +4,7 @@ import "./globals.css";
 import "../css/pageView.css";
 import "../css/shadows.css";
 import { Toaster } from "@/components/ui/sonner";
-import { Navbar } from "@/components/Navbar";
+import { Navbar } from "@/components/utils/Navbar";
 
 const quicksand = Quicksand({
   subsets: ['latin'],
@@ -22,7 +22,7 @@ const quantico = Quantico({
 });
 
 export const metadata: Metadata = {
-  title: "TRC20 Batch Transferer",
+  title: "TRC20 Batch Sender",
   description: "A SaaS platform for batch TRX and USDT transactions using the TRC20 token standard on the TRON blockchain",
 };
 
@@ -36,6 +36,7 @@ export default function RootLayout({
       <body
         className={`${quantico.variable} ${quicksand.variable} antialiased`}
       >
+        
         {children}
         <Navbar />
         <Toaster richColors position="bottom-center" />

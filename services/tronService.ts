@@ -1,4 +1,5 @@
 
+import { Account, AccountResource } from "@/models/tronResponse";
 import { TronWeb } from "tronweb";
 
 class TronService {
@@ -36,6 +37,7 @@ class TronService {
         }
     }
 
+    // Validate private key
     validatePrivateKey = async (privateKey: string): Promise<boolean> => {
         try {
             const cleanKey = privateKey.replace(/^0x/, "");
@@ -89,7 +91,49 @@ class TronService {
         }
     }
 
+    // Get account info
+    getAccount = async (address: string): Promise<Account> => {
+        try {
+            const account = await TronService.publicInstance.trx.getAccount(address);
+            return account;
+        } catch (error) {
+            throw error;
+        }
+    }
 
+    // Get account resources (eg. energy, bandwidth)
+    getAccountResources = async (address: string): Promise<{ energy: number, bandwidth: number }> => {
+        try {
+            const resources: AccountResource = await TronService.publicInstance.trx.getAccountResources(address);
+            const freeNetUsed = resources.freeNetUsed || 0;
+            const netUsed = resources.NetUsed || 0;
+            const energyUsed = resources.EnergyUsed || 0;
+
+            const freeBandwidthRemaining = (resources.freeNetLimit || 0) - freeNetUsed;
+            const stakedBandwidthRemaining = (resources.NetLimit || 0) - netUsed;
+            const totalBandwidthRemaining = freeBandwidthRemaining + stakedBandwidthRemaining;
+
+            const energyRemaining = (resources.EnergyLimit || 0) - energyUsed;
+
+            return { energy: energyRemaining, bandwidth: totalBandwidthRemaining };
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    getSenderProfile = async (address: string): Promise<{ trx: number; usdt: number; energy: number; bandwidth: number }> => {
+        try {
+            const [account, usdt, resources] = await Promise.all([
+                this.getAccount(address),
+                this.getBalance({ address, token: "USDT" }),
+                this.getAccountResources(address),
+            ]);
+            const trx = Number(TronService.publicInstance.fromSun(account.balance));
+            return { trx, usdt, energy: resources.energy, bandwidth: resources.bandwidth };
+        } catch (error) {
+            throw error;
+        }
+    }
 
 
 }

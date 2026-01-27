@@ -1,19 +1,21 @@
-import { useId } from 'react'
-import { Check, SendHorizonalIcon } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { useId } from 'react';
+import { Check, SendHorizonalIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface InputEndInlineButtonProps {
     label: string;
+    defaultValue?: string;
     placeholder?: string;
     handleChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
     handleClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
     type?: 'text' | 'password' | 'email';
     activated?: boolean;
+    isLoading?: boolean;
 }
 
-const InputEndInlineButton = ({ label, placeholder, handleChange, handleClick, type = 'text', activated = false }: InputEndInlineButtonProps) => {
+const InputEndInlineButton = ({ label, defaultValue, placeholder, handleChange, handleClick, type = 'text', activated = false, isLoading = false }: InputEndInlineButtonProps) => {
     const id = useId()
 
     return (
@@ -21,13 +23,13 @@ const InputEndInlineButton = ({ label, placeholder, handleChange, handleClick, t
             <Label htmlFor={id}>{label}</Label>
             <div className='w-full flex items-center gap-x-2'>
                 <div className='grow relative'>
-                    <Input id={id} type={type} placeholder={placeholder} className='pr-9' onChange={handleChange} disabled={activated} />
+                    <Input id={id} type={type} defaultValue={defaultValue} placeholder={placeholder} className='pr-9' onChange={handleChange} disabled={activated} readOnly={activated || isLoading} />
                     <Button
                         variant='ghost'
                         size='icon'
-                        className='text-tangerine/80 focus-visible:ring-ring/50 absolute inset-y-0 right-0 rounded-l-none hover:text-tangerine hover:bg-transparent'
+                        className={`absolute inset-y-0 right-0 text-tangerine/80 focus-visible:ring-ring/50 rounded-l-none hover:text-tangerine hover:bg-transparent ${isLoading && 'text-neutral-600 hover:text-neutral-600'}`}
                         onClick={handleClick}
-                        disabled={activated}
+                        disabled={activated || isLoading}
                     >
                         {!activated &&
                             <SendHorizonalIcon />

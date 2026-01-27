@@ -11,7 +11,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const data = await tronService.validateAddress(address);
         return NextResponse.json({ success: true, data }, { status: 200 });
     } catch (error) {
-        console.error("[API_ERROR] /tron: ", error);
+        console.error("[API_ERROR] /validate-address: ", error);
         return NextResponse.json({ success: false, message: (error as Error).message || "Internal Server Error" }, { status: 500 });
     }
 }
