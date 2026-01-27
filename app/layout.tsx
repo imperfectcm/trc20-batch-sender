@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { Quicksand, Quantico } from "next/font/google";
-import "./css/globals.css";
-import "./css/shadow.css";
+import "./globals.css";
+import "../css/pageView.css";
+import "../css/shadows.css";
+import { Toaster } from "@/components/ui/sonner";
+import { Navbar } from "@/components/Navbar";
 
 const quicksand = Quicksand({
   subsets: ['latin'],
@@ -19,7 +22,7 @@ const quantico = Quantico({
 });
 
 export const metadata: Metadata = {
-  title: "TRC20 Batch Transfer",
+  title: "TRC20 Batch Transferer",
   description: "A SaaS platform for batch TRX and USDT transactions using the TRC20 token standard on the TRON blockchain",
 };
 
@@ -34,6 +37,8 @@ export default function RootLayout({
         className={`${quantico.variable} ${quicksand.variable} antialiased`}
       >
         {children}
+        <Navbar />
+        <Toaster richColors position="bottom-center" />
       </body>
     </html>
   );
