@@ -9,3 +9,11 @@
     color: var(--background);
     text-shadow: -10px 0px 20px var(--tangerine), 10px 0px 20px var(--tangerine), 0 0 4px var(--tangerine);
 }
+
+.tangerine-card-shadow {
+    transition: box-shadow 0.5s ease-in-out;
+}
+
+.tangerine-card-shadow:hover {
+    box-shadow: 0 4px 4px 0 var(--tangerine), 0 6px 20px 0 var(--tangerine);
+}

@@ -2,6 +2,7 @@
 
 import { useSenderStore } from "@/utils/store";
 import { Button } from "../ui/button"
+import { LockOpen } from "lucide-react";
 
 export const UnlockProfileButton = () => {
     const active = useSenderStore((state) => state.active);
@@ -19,7 +20,7 @@ export const UnlockProfileButton = () => {
                 onClick={handleUnlockInput}
                 disabled={!active.address && !active.privateKey}
             >
-                Unlock Profile
+                <LockOpen />Unlock Profile
             </Button>
         </div>
     )

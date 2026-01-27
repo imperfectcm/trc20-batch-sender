@@ -36,7 +36,6 @@ export default function RootLayout({
       <body
         className={`${quantico.variable} ${quicksand.variable} antialiased`}
       >
-        
         {children}
         <Navbar />
         <Toaster richColors position="bottom-center" />

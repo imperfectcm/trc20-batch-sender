@@ -1,6 +1,7 @@
 import { SenderAddressContainer } from "@/components/user-info/SenderAddressContainer";
 import { PrivateKeyContainer } from "@/components/user-info/PrivateKeyContainer";
 import { UnlockProfileButton } from "@/components/user-info/UnlockProfileButton";
+import { ProfileContainer } from "@/components/user-info/ProfileContainer";
 
 export default function Home() {
   return (
@@ -10,6 +11,7 @@ export default function Home() {
           <SenderAddressContainer />
           <PrivateKeyContainer />
           <UnlockProfileButton />
+          <ProfileContainer />
         </article>
       </main>
     </div>

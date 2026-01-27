@@ -1,8 +1,6 @@
 import { create, StoreApi, UseBoundStore } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { toast } from "sonner";
-import { Account } from '@/models/tronResponse';
-import { profile } from 'console';
 
 type WithSelectors<S> = S extends { getState: () => infer T }
     ? S & { use: { [K in keyof T]: () => T[K] } }
@@ -57,7 +55,7 @@ export const useSenderStore = createSelectors(
                 address: "",
                 privateKey: "",
                 active: { address: false, privateKey: false },
-                profile: { trx: 0, usdt: 0, energy: 0, bandwidth: 0 },
+                profile: { trx: undefined, usdt: undefined, energy: undefined, bandwidth: undefined },
                 isLoading: false,
                 setAddress: (address) =>
                     set((state) => ({
@@ -79,7 +77,7 @@ export const useSenderStore = createSelectors(
                             get().fetchProfile();
                             get().startPolling();
                         } else {
-                            get().setProfile({ trx: 0, usdt: 0, energy: 0, bandwidth: 0 });
+                            get().setProfile({ trx: undefined, usdt: undefined, energy: undefined, bandwidth: undefined });
                             get().stopPolling();
                         }
                     }
@@ -170,7 +168,6 @@ export const useSenderStore = createSelectors(
                     pollInterval = setInterval(() => {
                         const { active, address } = get();
                         if (active.address && address) {
-                            console.log("Polling profile...");
                             get().fetchProfile();
                         }
                     }, intervalMs);
@@ -186,7 +183,7 @@ export const useSenderStore = createSelectors(
                         address: "",
                         privateKey: "",
                         active: { address: false, privateKey: false },
-                        profile: { trx: 0, usdt: 0, energy: 0, bandwidth: 0 },
+                        profile: { trx: undefined, usdt: undefined, energy: undefined, bandwidth: undefined },
                         isLoading: false,
                     });
                     get().stopPolling();
