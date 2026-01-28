@@ -2,6 +2,7 @@ import { create, StoreApi, UseBoundStore } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { toast } from "sonner";
 import { Network } from '@/models/network';
+import { TronGridTrc20Transaction } from '@/models/tronResponse';
 
 type WithSelectors<S> = S extends { getState: () => infer T }
     ? S & { use: { [K in keyof T]: () => T[K] } }
@@ -28,7 +29,7 @@ const resolveState = <T>(update: SetStateAction<T>, current: T): T => {
 
 let pollInterval: NodeJS.Timeout | null = null;
 
-type SenderState = {
+type SenderStates = {
     network: Network;
     address: string;
     privateKey: string;
@@ -52,7 +53,7 @@ type SenderActions = {
 }
 
 export const useSenderStore = createSelectors(
-    create<SenderState & SenderActions>()(
+    create<SenderStates & SenderActions>()(
         persist(
             (set, get) => ({
                 network: 'mainnet',
@@ -155,7 +156,13 @@ export const useSenderStore = createSelectors(
                     const { network, address } = get();
                     if (!address) return;
                     try {
-                        const res = await fetch(`/api/profile?network=${network}&address=${address}`);
+                        const res = await fetch(`/api/profile`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ network, address }),
+                        });
                         const result: {
                             success: boolean,
                             message?: string,
@@ -212,5 +219,76 @@ export const useSenderStore = createSelectors(
                 }),
             }
         )
+    )
+);
+
+
+type OperationStates = {
+    isLoading: boolean;
+    transferRecords: TronGridTrc20Transaction[];
+}
+
+type OperationActions = {
+    validateAddress: (address: string) => Promise<boolean>;
+    fetchTransferRecords: (payload: { network?: Network, address: string }) => Promise<void>;
+}
+
+export const useOperationStore = createSelectors(
+    create<OperationStates & OperationActions>()(
+        (set, get) => ({
+            isLoading: false,
+            transferRecords: [],
+            validateAddress: async (address: string): Promise<boolean> => {
+                try {
+                    set({ isLoading: true });
+                    const res = await fetch(`/api/validate-address`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ address }),
+                    });
+                    const result = await res.json();
+                    if (!result.success) {
+                        throw new Error(result.message || "Failed to validate address");
+                    }
+                    if (!result.data) {
+                        toast.error("This is an invalid TRON address", { icon: '✘' });
+                        return false;
+                    }
+                    toast.success("This is a valid TRON address", { icon: '✓' });
+                    return result.success;
+                } catch (error) {
+                    toast.error((error as Error).message || "Failed to validate address");
+                    return false;
+                } finally {
+                    set({ isLoading: false });
+                }
+            },
+            fetchTransferRecords: async (payload: { network?: Network, address: string }): Promise<void> => {
+                try {
+                    set({ isLoading: true });
+                    const res = await fetch(`/api/transfer-record`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+                    const result = await res.json();
+                    if (!result.success) {
+                        throw new Error(result.message || "Failed to fetch trc20 transfer records");
+                    }
+                    if (!result.data || result.data.length === 0) {
+                        toast.info("No transfer records found");
+                    }
+                    set({ transferRecords: resolveState(result.data || [], get().transferRecords) });
+                } catch (error) {
+                    toast.error((error as Error).message || "Failed to fetch trc20 transfer records");
+                } finally {
+                    set({ isLoading: false });
+                }
+            }
+        })
     )
 );

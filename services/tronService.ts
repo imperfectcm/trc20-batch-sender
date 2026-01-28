@@ -1,22 +1,26 @@
 
 import { Network } from "@/models/network";
-import { Account, AccountResource } from "@/models/tronResponse";
+import { Account, AccountResource, TronGridTrc20Response, TronGridTrc20Transaction } from "@/models/tronResponse";
 import { TronWeb } from "tronweb";
 
 class TronService {
     private static publicInstance: TronWeb;
     private static publicShastaInstance: TronWeb;
+    private API_ENDPOINTS = {
+        mainnet: 'https://api.trongrid.io',
+        shasta: 'https://api.shasta.trongrid.io',
+    }
 
     constructor() {
         if (!TronService.publicInstance) {
             TronService.publicInstance = new TronWeb({
-                fullHost: 'https://api.trongrid.io',
+                fullHost: this.API_ENDPOINTS.mainnet,
                 headers: { "TRON-PRO-API-KEY": process.env.TRONWEB_API_KEY },
             });
         }
         if (!TronService.publicShastaInstance) {
             TronService.publicShastaInstance = new TronWeb({
-                fullHost: 'https://api.shasta.trongrid.io',
+                fullHost: this.API_ENDPOINTS.shasta,
                 headers: { "TRON-PRO-API-KEY": process.env.TRONWEB_API_KEY },
             });
         }
@@ -24,7 +28,7 @@ class TronService {
 
     private connectPrivateTron = async (privateKey: string): Promise<TronWeb> => {
         const tronWeb = new TronWeb({
-            fullHost: 'https://api.trongrid.io',
+            fullHost: this.API_ENDPOINTS.mainnet,
             headers: { "TRON-PRO-API-KEY": process.env.TRONWEB_API_KEY },
             privateKey,
         });
@@ -175,6 +179,32 @@ class TronService {
         }
     }
 
+    getRecentTransfers = async (payload: { network?: Network, address: string, limit?: number, onlyConfirmed?: boolean }): Promise<TronGridTrc20Transaction[]> => {
+        try {
+            const { network = "mainnet", address, limit = 20, onlyConfirmed } = payload;
+            const baseUrl = this.API_ENDPOINTS[network];
+            if (!baseUrl) {
+                throw new Error("Unsupported network");
+            }
+
+            const url = `${baseUrl}/v1/accounts/${address}/transactions/trc20`;
+            const params = new URLSearchParams({
+                limit: limit.toString(),
+                only_confirmed: (onlyConfirmed ?? true).toString(),
+                order_by: 'block_timestamp,desc'
+            });
+
+            const res = await fetch(`${url}?${params}`);
+            const result: TronGridTrc20Response = await res.json();
+            if (!result || !result.success) {
+                throw new Error("Failed to fetch transfer records");
+            }
+
+            return result.data || [];
+        } catch (error) {
+            throw error;
+        }
+    }
 
 }
 

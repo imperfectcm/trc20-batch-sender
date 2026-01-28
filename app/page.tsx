@@ -3,6 +3,7 @@ import { PrivateKeyContainer } from "@/components/user-info/PrivateKeyContainer"
 import { NetworkContainer } from "@/components/user-info/NetworkContainer";
 import { UnlockProfileButton } from "@/components/user-info/UnlockProfileButton";
 import { ProfileContainer } from "@/components/user-info/ProfileContainer";
+import { OperationTabsContainer } from "@/components/operations/OperationTabsContainer";
 
 export default function Home() {
   return (
@@ -15,6 +16,7 @@ export default function Home() {
           <UnlockProfileButton />
         </article>
         <ProfileContainer />
+        <OperationTabsContainer />
       </main>
     </div>
   );

@@ -2,10 +2,9 @@ import { Network } from '@/models/network';
 import tronService from '@/services/tronService';
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET(request: NextRequest): Promise<NextResponse> {
+export async function POST(request: NextRequest): Promise<NextResponse> {
     try {
-        const network = request.nextUrl.searchParams.get("network") as Network;
-        const address = request.nextUrl.searchParams.get("address");
+        const { network, address } = await request.json() as { network: Network, address: string };
         if (!network || !address) {
             return NextResponse.json({ success: false, message: "Incomplete parameters" }, { status: 400 });
         }

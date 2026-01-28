@@ -18,12 +18,18 @@ interface InputEndInlineButtonProps {
 const InputEndInlineButton = ({ label, defaultValue, placeholder, handleChange, handleClick, type = 'text', activated = false, isLoading = false }: InputEndInlineButtonProps) => {
     const id = useId()
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            handleClick(e as unknown as React.MouseEvent<HTMLButtonElement>);
+        }
+    }
+
     return (
         <div className='w-full space-y-2'>
             <Label htmlFor={id}>{label}</Label>
             <div className='w-full flex items-center gap-x-2'>
                 <div className='grow relative'>
-                    <Input id={id} type={type} defaultValue={defaultValue} placeholder={placeholder} className='pr-9' onChange={handleChange} disabled={activated} readOnly={activated || isLoading} />
+                    <Input id={id} type={type} defaultValue={defaultValue} placeholder={placeholder} className='pr-9' onChange={handleChange} onKeyDown={handleKeyDown} disabled={activated} readOnly={activated || isLoading} />
                     <Button
                         variant='ghost'
                         size='icon'
