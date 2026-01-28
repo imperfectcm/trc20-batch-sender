@@ -5,6 +5,7 @@ import "../css/pageView.css";
 import "../css/shadows.css";
 import { Toaster } from "@/components/ui/sonner";
 import { Navbar } from "@/components/utils/Navbar";
+import { Particles } from "@/components/utils/PaticlesNackground";
 
 const quicksand = Quicksand({
   subsets: ['latin'],
@@ -36,6 +37,7 @@ export default function RootLayout({
       <body
         className={`${quantico.variable} ${quicksand.variable} antialiased`}
       >
+        <Particles className="fixed inset-0 -z-10" color="#945d32"/>
         {children}
         <Navbar />
         <Toaster richColors position="bottom-center" />

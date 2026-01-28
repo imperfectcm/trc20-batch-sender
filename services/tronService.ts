@@ -1,14 +1,22 @@
 
+import { Network } from "@/models/network";
 import { Account, AccountResource } from "@/models/tronResponse";
 import { TronWeb } from "tronweb";
 
 class TronService {
     private static publicInstance: TronWeb;
+    private static publicShastaInstance: TronWeb;
 
     constructor() {
         if (!TronService.publicInstance) {
             TronService.publicInstance = new TronWeb({
                 fullHost: 'https://api.trongrid.io',
+                headers: { "TRON-PRO-API-KEY": process.env.TRONWEB_API_KEY },
+            });
+        }
+        if (!TronService.publicShastaInstance) {
+            TronService.publicShastaInstance = new TronWeb({
+                fullHost: 'https://api.shasta.trongrid.io',
                 headers: { "TRON-PRO-API-KEY": process.env.TRONWEB_API_KEY },
             });
         }
@@ -23,8 +31,18 @@ class TronService {
         return tronWeb;
     }
 
-    private contractAddressMap: Record<string, string> = {
-        "USDT": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    private ADDRESS_MAP: Record<string, Record<Network, string>> = {
+        "USDT": {
+            mainnet: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+            shasta: "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs"
+        },
+    }
+
+    getInstance = (network: Network = 'mainnet'): TronWeb => {
+        if (network !== 'mainnet' && network !== 'shasta') {
+            throw new Error("Unsupported network");
+        }
+        return network === 'mainnet' ? TronService.publicInstance : TronService.publicShastaInstance;
     }
 
     // Validate TRON address
@@ -38,8 +56,24 @@ class TronService {
     }
 
     // Validate private key
-    validatePrivateKey = async (privateKey: string): Promise<boolean> => {
+    validatePrivateKey = async (payload: { address: string, privateKey: string }): Promise<boolean> => {
         try {
+            const { address, privateKey } = payload;
+            if (!address) {
+                throw new Error("No address provided");
+            }
+
+            // In case of mnemonic phrase
+            if (privateKey.includes(" ")) {
+                try {
+                    const account = TronWeb.fromMnemonic(privateKey);
+                    const isValid = address === account.address;
+                    return isValid;
+                } catch (error) {
+                    throw new Error("Invalid mnemonic phrase");
+                }
+            }
+
             const cleanKey = privateKey.replace(/^0x/, "");
             if (cleanKey.length !== 64) {
                 throw new Error("Invalid private key length");
@@ -48,8 +82,8 @@ class TronService {
                 throw new Error("Private key contains invalid characters");
             }
 
-            const address = TronWeb.address.fromPrivateKey(cleanKey);
-            const isValid = TronWeb.isAddress(address);
+            const generatedAddress = TronWeb.address.fromPrivateKey(cleanKey);
+            const isValid = address === generatedAddress;
             return isValid;
         } catch (error: any) {
             throw error;
@@ -57,44 +91,46 @@ class TronService {
     }
 
     // Get TRX balance of an address
-    getBalance = async (payload: { address: string, token: string }): Promise<number> => {
+    getBalance = async (payload: { network: Network, address: string, token: string }): Promise<number> => {
         try {
-            const { address, token } = payload;
+            const { network, address, token } = payload;
+            const tronWeb = this.getInstance(network);
             if (token === "TRX") {
-                const balanceInSun = await TronService.publicInstance.trx.getBalance(address);
-                const balance = Number(TronService.publicInstance.fromSun(balanceInSun));
+                const balanceInSun = await tronWeb.trx.getBalance(address);
+                const balance = Number(tronWeb.fromSun(balanceInSun));
                 if (isNaN(balance)) {
                     throw new Error("Failed to fetch TRX balance");
                 }
                 return balance;
             }
 
-            const contractAddress = this.contractAddressMap[token];
+            const contractAddress = this.ADDRESS_MAP[token][network];
             if (!contractAddress) {
                 throw new Error("Unsupported token");
             }
 
-            const contract = await TronService.publicInstance.contract().at(contractAddress);
+            const contract = await tronWeb.contract().at(contractAddress);
             const res = await contract.balanceOf(address).call({ from: address });
             const decimals = token === "USDT" ? 6 : await contract.decimals().call();
-            const balanceBig = TronService.publicInstance.BigNumber(res);
-            const divider = TronService.publicInstance.BigNumber(10).pow(decimals);
+            const balanceBig = tronWeb.BigNumber(res);
+            const divider = tronWeb.BigNumber(10).pow(decimals);
 
             const balance = balanceBig.div(divider).toNumber();
             if (isNaN(balance)) {
                 throw new Error(`Failed to fetch ${token} balance`);
             }
             return balance;
-
         } catch (error) {
             throw error;
         }
     }
 
     // Get account info
-    getAccount = async (address: string): Promise<Account> => {
+    getAccount = async (payload: { network: Network, address: string }): Promise<Account> => {
         try {
-            const account = await TronService.publicInstance.trx.getAccount(address);
+            const { network, address } = payload;
+            const tronWeb = this.getInstance(network);
+            const account = await tronWeb.trx.getAccount(address);
             return account;
         } catch (error) {
             throw error;
@@ -102,9 +138,11 @@ class TronService {
     }
 
     // Get account resources (eg. energy, bandwidth)
-    getAccountResources = async (address: string): Promise<{ energy: number, bandwidth: number }> => {
+    getAccountResources = async (payload: { network: Network, address: string }): Promise<{ energy: number, bandwidth: number }> => {
         try {
-            const resources: AccountResource = await TronService.publicInstance.trx.getAccountResources(address);
+            const { network, address } = payload;
+            const tronWeb = this.getInstance(network);
+            const resources: AccountResource = await tronWeb.trx.getAccountResources(address);
             const freeNetUsed = resources.freeNetUsed || 0;
             const netUsed = resources.NetUsed || 0;
             const energyUsed = resources.EnergyUsed || 0;
@@ -121,14 +159,16 @@ class TronService {
         }
     }
 
-    getSenderProfile = async (address: string): Promise<{ trx: number; usdt: number; energy: number; bandwidth: number }> => {
+    getSenderProfile = async (payload: { network: Network, address: string }): Promise<{ trx: number; usdt: number; energy: number; bandwidth: number }> => {
         try {
+            const { network, address } = payload;
+            const tronWeb = this.getInstance(network);
             const [account, usdt, resources] = await Promise.all([
-                this.getAccount(address),
-                this.getBalance({ address, token: "USDT" }),
-                this.getAccountResources(address),
+                this.getAccount({ network, address }),
+                this.getBalance({ network, address, token: "USDT" }),
+                this.getAccountResources({ network, address }),
             ]);
-            const trx = Number(TronService.publicInstance.fromSun(account.balance));
+            const trx = Number(tronWeb.fromSun(account.balance));
             return { trx, usdt, energy: resources.energy, bandwidth: resources.bandwidth };
         } catch (error) {
             throw error;

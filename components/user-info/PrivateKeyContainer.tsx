@@ -27,7 +27,7 @@ export const PrivateKeyContainer = () => {
         <section className="w-full">
             <InputEndInlineButton
                 label="Private Key"
-                placeholder="Your private key"
+                placeholder="Your private key or mnemonic phrase"
                 handleChange={handleChange}
                 handleClick={handleActivatePrivateKey}
                 type={inputType}

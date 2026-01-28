@@ -1,6 +1,7 @@
 import { create, StoreApi, UseBoundStore } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { toast } from "sonner";
+import { Network } from '@/models/network';
 
 type WithSelectors<S> = S extends { getState: () => infer T }
     ? S & { use: { [K in keyof T]: () => T[K] } }
@@ -28,6 +29,7 @@ const resolveState = <T>(update: SetStateAction<T>, current: T): T => {
 let pollInterval: NodeJS.Timeout | null = null;
 
 type SenderState = {
+    network: Network;
     address: string;
     privateKey: string;
     active: { address: boolean; privateKey: boolean; }
@@ -36,6 +38,7 @@ type SenderState = {
 };
 
 type SenderActions = {
+    setNetwork: (network: SetStateAction<Network>) => void;
     setAddress: (address: SetStateAction<string>) => void;
     setPrivateKey: (privateKey: SetStateAction<string>) => void;
     setActive: (field: 'address' | 'privateKey', value: SetStateAction<boolean>) => void;
@@ -52,11 +55,16 @@ export const useSenderStore = createSelectors(
     create<SenderState & SenderActions>()(
         persist(
             (set, get) => ({
+                network: 'mainnet',
                 address: "",
                 privateKey: "",
                 active: { address: false, privateKey: false },
                 profile: { trx: undefined, usdt: undefined, energy: undefined, bandwidth: undefined },
                 isLoading: false,
+                setNetwork: (network) =>
+                    set((state) => ({
+                        network: resolveState(network, state.network),
+                    })),
                 setAddress: (address) =>
                     set((state) => ({
                         address: resolveState(address, state.address),
@@ -114,20 +122,25 @@ export const useSenderStore = createSelectors(
                 },
                 validatePrivateKey: async (privateKey: string): Promise<boolean> => {
                     try {
+                        const { address, active } = get();
                         set({ isLoading: true });
                         const res = await fetch(`/api/validate-private-key`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                             },
-                            body: JSON.stringify({ privateKey }),
+                            body: JSON.stringify({
+                                addressActivated: active.address,
+                                address,
+                                privateKey
+                            }),
                         });
                         const result = await res.json();
                         if (!result.success) {
                             throw new Error(result.message || "Failed to validate private key");
                         }
                         if (!result.data) {
-                            toast.warning("Invalid private key");
+                            toast.warning("Private key not matched");
                             return false;
                         }
                         return result.success;
@@ -139,10 +152,10 @@ export const useSenderStore = createSelectors(
                     }
                 },
                 fetchProfile: async () => {
-                    const address = get().address;
+                    const { network, address } = get();
                     if (!address) return;
                     try {
-                        const res = await fetch(`/api/profile?address=${address}`);
+                        const res = await fetch(`/api/profile?network=${network}&address=${address}`);
                         const result: {
                             success: boolean,
                             message?: string,
@@ -180,6 +193,7 @@ export const useSenderStore = createSelectors(
                 },
                 reset: () => {
                     set({
+                        network: 'mainnet',
                         address: "",
                         privateKey: "",
                         active: { address: false, privateKey: false },
