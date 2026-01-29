@@ -4,7 +4,10 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
     try {
-        const { network, address } = await request.json() as { network: Network, address: string };
+        const { network, address, addressActivated } = await request.json() as { network: Network, address: string, addressActivated: boolean };
+        if (!addressActivated) {
+            return NextResponse.json({ success: false, message: "No activated address" }, { status: 401 });
+        }
         if (!network || !address) {
             return NextResponse.json({ success: false, message: "Incomplete parameters" }, { status: 400 });
         }

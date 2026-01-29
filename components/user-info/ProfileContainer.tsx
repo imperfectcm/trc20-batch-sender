@@ -1,6 +1,10 @@
 "use client";
 
 import { useSenderStore } from "@/utils/store";
+import { RefreshCw } from "lucide-react";
+import { Button } from "../ui/button";
+import { useRef } from "react";
+import { toast } from "sonner";
 
 const PROFILE_FIELDS = [
     { key: "trx", label: "TRX Balance" },
@@ -17,9 +21,25 @@ const formatValue = (value?: number) => {
 export const ProfileContainer = () => {
     const profile = useSenderStore((state) => state.profile);
     const addressActivated = useSenderStore((state) => state.active.address);
+    const fetchProfile = useSenderStore((state) => state.fetchProfile);
+
+    const lastRefreshTime = useRef<number>(0);
+    const DEBOUNCE_TIME = 5000;
+
+    const handleRefresh = () => {
+        const now = Date.now();
+
+        if (now - lastRefreshTime.current < DEBOUNCE_TIME) {
+            toast.warning('Too frequent, try again later');
+            return;
+        }
+
+        lastRefreshTime.current = now;
+        fetchProfile();
+    };
 
     return (
-        <section className="w-full space-y-2">
+        <section className="relative w-full">
             <div className="w-full h-auto py-10 ring-1 ring-neutral-600 grid grid-cols-4 rounded-lg tangerine-card-shadow">
                 {PROFILE_FIELDS.map(({ key, label }) => (
                     <div
@@ -33,6 +53,10 @@ export const ProfileContainer = () => {
                     </div>
                 ))}
             </div>
+            <Button variant="ghost" onClick={handleRefresh} disabled={!addressActivated}
+                className={`${!addressActivated && "hidden"} absolute bottom-2 right-2 h-auto p-2`}>
+                <RefreshCw size={16} />
+            </Button>
         </section>
     )
 }

@@ -8,7 +8,7 @@
 :root {
   --tangerine: #f08635;
   --radius: 0.625rem;
-  --background: oklch(0.145 0 0);
+  --background: #0d0d0d;
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
   --card-foreground: oklch(0.985 0 0);

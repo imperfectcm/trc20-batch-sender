@@ -52,7 +52,7 @@ export function CopyButton({
             variant={variant}
             size={size}
             onClick={handleCopy}
-            className={cn("relative overflow-hidden", className)}
+            className={cn("relative overflow-hidden h-auto p-2", className)}
             {...props}
         >
             <span

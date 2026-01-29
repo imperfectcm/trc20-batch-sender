@@ -62,6 +62,7 @@ export const useSenderStore = createSelectors(
                 active: { address: false, privateKey: false },
                 profile: { trx: undefined, usdt: undefined, energy: undefined, bandwidth: undefined },
                 isLoading: false,
+                isFetchingProfile: false,
                 setNetwork: (network) =>
                     set((state) => ({
                         network: resolveState(network, state.network),
@@ -153,15 +154,15 @@ export const useSenderStore = createSelectors(
                     }
                 },
                 fetchProfile: async () => {
-                    const { network, address } = get();
-                    if (!address) return;
+                    const { network, address, active } = get();
+                    if (!address || !active.address) return;
                     try {
                         const res = await fetch(`/api/profile`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                             },
-                            body: JSON.stringify({ network, address }),
+                            body: JSON.stringify({ network, address, addressActivated: active.address }),
                         });
                         const result: {
                             success: boolean,
@@ -182,7 +183,7 @@ export const useSenderStore = createSelectors(
                         toast.error((error as Error).message || "Failed to fetch profile");
                     }
                 },
-                startPolling: (intervalMs = 10000) => {
+                startPolling: (intervalMs = 60000) => {
                     if (pollInterval) return;
 
                     pollInterval = setInterval(() => {

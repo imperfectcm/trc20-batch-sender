@@ -2,6 +2,7 @@
 import { Network } from "@/models/network";
 import { Account, AccountResource, TronGridTrc20Response, TronGridTrc20Transaction } from "@/models/tronResponse";
 import { TronWeb } from "tronweb";
+import { rateLimiter } from "./rateLimitService";
 
 class TronService {
     private static publicInstance: TronWeb;
@@ -42,6 +43,7 @@ class TronService {
         },
     }
 
+    // Select TronWeb instance based on network
     getInstance = (network: Network = 'mainnet'): TronWeb => {
         if (network !== 'mainnet' && network !== 'shasta') {
             throw new Error("Unsupported network");
@@ -100,7 +102,9 @@ class TronService {
             const { network, address, token } = payload;
             const tronWeb = this.getInstance(network);
             if (token === "TRX") {
-                const balanceInSun = await tronWeb.trx.getBalance(address);
+                const balanceInSun = await rateLimiter.executeWithQueue(
+                    async () => await tronWeb.trx.getBalance(address)
+                );
                 const balance = Number(tronWeb.fromSun(balanceInSun));
                 if (isNaN(balance)) {
                     throw new Error("Failed to fetch TRX balance");
@@ -113,9 +117,15 @@ class TronService {
                 throw new Error("Unsupported token");
             }
 
-            const contract = await tronWeb.contract().at(contractAddress);
-            const res = await contract.balanceOf(address).call({ from: address });
-            const decimals = token === "USDT" ? 6 : await contract.decimals().call();
+            const contract = await rateLimiter.executeWithQueue(
+                async () => await tronWeb.contract().at(contractAddress)
+            );
+            const res = await rateLimiter.executeWithQueue(
+                async () => await contract.balanceOf(address).call({ from: address })
+            );
+            const decimals = token === "USDT" ? 6 : await rateLimiter.executeWithQueue(
+                async () => await contract.decimals().call()
+            );
             const balanceBig = tronWeb.BigNumber(res);
             const divider = tronWeb.BigNumber(10).pow(decimals);
 
@@ -134,7 +144,9 @@ class TronService {
         try {
             const { network, address } = payload;
             const tronWeb = this.getInstance(network);
-            const account = await tronWeb.trx.getAccount(address);
+            const account = await rateLimiter.executeWithQueue(
+                async () => await tronWeb.trx.getAccount(address)
+            );
             return account;
         } catch (error) {
             throw error;
@@ -146,7 +158,10 @@ class TronService {
         try {
             const { network, address } = payload;
             const tronWeb = this.getInstance(network);
-            const resources: AccountResource = await tronWeb.trx.getAccountResources(address);
+            const resources: AccountResource = await rateLimiter.executeWithQueue(
+                async () => await tronWeb.trx.getAccountResources(address)
+            );
+
             const freeNetUsed = resources.freeNetUsed || 0;
             const netUsed = resources.NetUsed || 0;
             const energyUsed = resources.EnergyUsed || 0;
@@ -163,6 +178,7 @@ class TronService {
         }
     }
 
+    // Get sender profile (TRX, USDT balance, energy, bandwidth)
     getSenderProfile = async (payload: { network: Network, address: string }): Promise<{ trx: number; usdt: number; energy: number; bandwidth: number }> => {
         try {
             const { network, address } = payload;
@@ -173,12 +189,14 @@ class TronService {
                 this.getAccountResources({ network, address }),
             ]);
             const trx = Number(tronWeb.fromSun(account.balance));
+            console.log("Fetch profile time: ", new Date().toISOString());
             return { trx, usdt, energy: resources.energy, bandwidth: resources.bandwidth };
         } catch (error) {
             throw error;
         }
     }
 
+    // Get recent TRC20 transfer records
     getRecentTransfers = async (payload: { network?: Network, address: string, limit?: number, onlyConfirmed?: boolean }): Promise<TronGridTrc20Transaction[]> => {
         try {
             const { network = "mainnet", address, limit = 20, onlyConfirmed } = payload;
@@ -194,17 +212,23 @@ class TronService {
                 order_by: 'block_timestamp,desc'
             });
 
-            const res = await fetch(`${url}?${params}`);
+            const res = await rateLimiter.executeWithQueue(
+                async () => {
+                    const res = await fetch(`${url}?${params}`);
+                    return res;
+                }
+            );
             const result: TronGridTrc20Response = await res.json();
             if (!result || !result.success) {
                 throw new Error("Failed to fetch transfer records");
             }
-
             return result.data || [];
         } catch (error) {
             throw error;
         }
     }
+
+
 
 }
 

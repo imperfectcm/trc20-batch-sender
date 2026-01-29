@@ -69,7 +69,7 @@ export const Particles: React.FC<ParticlesProps> = ({
     ease = 50,
     size = 0.4,
     refresh = false,
-    color = "#ffffff",
+    color = "#28282B",
     vx = 0,
     vy = 0,
 }) => {
@@ -271,7 +271,7 @@ export const Particles: React.FC<ParticlesProps> = ({
     return (
         <div
             ref={canvasContainerRef}
-            className={cn("fixed inset-0 overflow-hidden bg-neutral-950", className)}
+            className={cn("fixed inset-0 overflow-hidden bg-background", className)}
         >
             <canvas className="absolute inset-0 size-full" ref={canvasRef} />
 
