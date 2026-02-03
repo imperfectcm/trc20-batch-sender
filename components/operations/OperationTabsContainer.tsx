@@ -8,15 +8,17 @@ import {
 } from "@/components/ui/tabs"
 import { CheckAddressContainer } from "./CheckAddressContainer";
 import { TransferRecordsContainer } from "./TransferRecordsContainer";
+import { SingleTransferContainer } from "./SingleTransferContainer";
 
 const TAB_OPTIONS = [
     { label: "Check Address", value: "check-address" },
     { label: "Check History", value: "check-history" },
+    { label: "Single Transfer", value: "single-transfer" },
 ] as const;
 
 export const OperationTabsContainer = () => {
     return (
-        <section className="w-full">
+        <article className="w-full">
             <Tabs defaultValue="check-address" className="flex flex-col gap-y-4">
                 <TabsList className="w-full bg-tangerine/10 ring-1 ring-tangerine/40 rounded-lg">
                     {TAB_OPTIONS.map(({ label, value }) => (
@@ -26,8 +28,9 @@ export const OperationTabsContainer = () => {
                 <div className="w-full p-4 ring-1 ring-tangerine/40 rounded-lg">
                     <TabsContent value="check-address"><CheckAddressContainer /></TabsContent>
                     <TabsContent value="check-history"><TransferRecordsContainer /></TabsContent>
+                    <TabsContent value="single-transfer"><SingleTransferContainer /></TabsContent>
                 </div>
             </Tabs>
-        </section>
+        </article>
     );
 }

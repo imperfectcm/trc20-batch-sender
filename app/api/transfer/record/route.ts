@@ -12,7 +12,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const data = await tronService.getRecentTransfers({ network, address });
         return NextResponse.json({ success: true, data }, { status: 200 });
     } catch (error) {
-        console.error("[API_ERROR] /transfer-record: ", error);
+        console.error("[API_ERROR] /transfer/record: ", error);
         return NextResponse.json({ success: false, message: (error as Error).message || "Internal Server Error" }, { status: 500 });
     }
 }

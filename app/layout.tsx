@@ -3,6 +3,8 @@ import { Quicksand, Quantico } from "next/font/google";
 import "./globals.css";
 import "../css/pageView.css";
 import "../css/shadows.css";
+import "../css/loader.css";
+import "../css/container.css";
 import { Toaster } from "@/components/ui/sonner";
 import { Navbar } from "@/components/utils/Navbar";
 import { Particles } from "@/components/utils/PaticlesNackground";

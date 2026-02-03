@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { CopyButton } from "../ui/copy-button";
 import { Spinner } from "@/components/ui/spinner";
+import { useReqDebounce } from "@/hooks/useReqDebounce";
 
 export const TransferRecordsContainer = () => {
     const network = useSenderStore(state => state.network);
@@ -22,15 +23,17 @@ export const TransferRecordsContainer = () => {
     const transferRecords = useOperationStore(state => state.transferRecords);
     const isLoading = useOperationStore((state) => state.isLoading);
 
+    const debouncedFetch = useReqDebounce("transferRecords", fetchTransferRecords);
+
     const handleClick = async () => {
-        await fetchTransferRecords({ network, address });
+        await debouncedFetch({ network, address });
     }
 
     return (
-        <div className="w-full">
+        <section className="w-full flex flex-col gap-y-4">
             {addressActivated ?
-                <div className="w-full flex flex-col gap-y-2">
-                    <p className="text-sm text-neutral-400" >
+                <div className="w-full flex flex-col gap-y-4">
+                    <p className="text-sm text-stone-400" >
                         Check the 20 most recent confirmed TRC20 transfer records.
                     </p>
                     <div className="flex gap-x-2">
@@ -38,7 +41,7 @@ export const TransferRecordsContainer = () => {
                     </div>
                 </div>
                 :
-                <p className="w-full text-center text-sm text-neutral-400" >
+                <p className="w-full text-center text-sm text-stone-400" >
                     activate the address to use this feature.
                 </p>
             }
@@ -59,7 +62,7 @@ export const TransferRecordsContainer = () => {
                     </TableHeader>
                     <TableBody>
                         {transferRecords.map((tx, index) => (
-                            <TableRow key={index} className="odd:bg-neutral-800 text-sm">
+                            <TableRow key={index} className="odd:bg-stone-800 text-sm">
                                 <TableCell className="relative p-2 w-[20%] max-w-0">
                                     <div className="truncate text-balance pr-4">{tx.transaction_id}</div>
                                     <div className="absolute top-1/2 -translate-y-1/2 right-0"><CopyButton content={tx.transaction_id} size="sm" variant="ghost" /></div>
@@ -67,17 +70,17 @@ export const TransferRecordsContainer = () => {
                                 <TableCell className="p-2 break-all">{tx.from}</TableCell>
                                 <TableCell className="p-2 break-all">{tx.to}</TableCell>
                                 <TableCell className="p-2 whitespace-nowrap">{tx.from === address && "-"} {parseInt(tx.value) / Math.pow(10, tx.token_info.decimals)} {tx.token_info.symbol}</TableCell>
-                                <TableCell className="p-2">{new Date(tx.block_timestamp).toLocaleString()}</TableCell>
+                                <TableCell className="p-2 text-right">{new Date(tx.block_timestamp).toLocaleString()}</TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
                 </Table>
             )}
             {addressActivated && isLoading && (
-                <p className="w-full flex justify-center text-neutral-400 py-8" >
+                <p className="w-full flex justify-center text-stone-400 py-8" >
                     <Spinner />
                 </p>
             )}
-        </div >
+        </section>
     )
 }

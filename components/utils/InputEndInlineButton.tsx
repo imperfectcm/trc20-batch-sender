@@ -33,7 +33,7 @@ const InputEndInlineButton = ({ label, defaultValue, placeholder, handleChange, 
                     <Button
                         variant='ghost'
                         size='icon'
-                        className={`absolute inset-y-0 right-0 text-tangerine/80 focus-visible:ring-ring/50 rounded-l-none hover:text-tangerine hover:bg-transparent ${isLoading && 'text-neutral-600 hover:text-neutral-600'}`}
+                        className={`absolute inset-y-0 right-0 text-tangerine/80 focus-visible:ring-ring/50 rounded-l-none hover:text-tangerine hover:bg-transparent ${isLoading && 'text-stone-600 hover:text-stone-600'}`}
                         onClick={handleClick}
                         disabled={activated || isLoading}
                     >

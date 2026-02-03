@@ -3,8 +3,7 @@
 import { useSenderStore } from "@/utils/store";
 import { RefreshCw } from "lucide-react";
 import { Button } from "../ui/button";
-import { useRef } from "react";
-import { toast } from "sonner";
+import { useReqDebounce } from "@/hooks/useReqDebounce";
 
 const PROFILE_FIELDS = [
     { key: "trx", label: "TRX Balance" },
@@ -23,40 +22,31 @@ export const ProfileContainer = () => {
     const addressActivated = useSenderStore((state) => state.active.address);
     const fetchProfile = useSenderStore((state) => state.fetchProfile);
 
-    const lastRefreshTime = useRef<number>(0);
-    const DEBOUNCE_TIME = 5000;
+    const debouncedFetch = useReqDebounce("fetchProfile", fetchProfile);
 
-    const handleRefresh = () => {
-        const now = Date.now();
-
-        if (now - lastRefreshTime.current < DEBOUNCE_TIME) {
-            toast.warning('Too frequent, try again later');
-            return;
-        }
-
-        lastRefreshTime.current = now;
-        fetchProfile();
+    const handleRefresh = async () => {
+        await debouncedFetch();
     };
 
     return (
-        <section className="relative w-full">
-            <div className="w-full h-auto py-10 ring-1 ring-neutral-600 grid grid-cols-4 rounded-lg tangerine-card-shadow">
+        <article className="relative w-full">
+            <div className="w-full h-auto py-10 ring-1 ring-stone-600 grid grid-cols-4 rounded-lg tangerine-card-shadow">
                 {PROFILE_FIELDS.map(({ key, label }) => (
                     <div
                         key={key}
                         className="flex flex-col justify-center items-center"
                     >
-                        <p className="font-quantico text-sm text-neutral-400">{label}</p>
-                        <p className={`text-lg font-semibold ${addressActivated ? 'text-tangerine/80' : 'text-neutral-400'}`}>
+                        <p className="font-quantico text-sm text-stone-400">{label}</p>
+                        <p className={`text-lg font-semibold ${addressActivated ? 'text-tangerine/80' : 'text-stone-400'}`}>
                             {addressActivated ? formatValue(profile[key]) : '-'}
                         </p>
                     </div>
                 ))}
             </div>
             <Button variant="ghost" onClick={handleRefresh} disabled={!addressActivated}
-                className={`${!addressActivated && "hidden"} absolute bottom-2 right-2 h-auto p-2`}>
+                className={`${!addressActivated && "hidden"} absolute bottom-2 right-2 h-auto p-2 text-stone-600 hover:text-tangerine`}>
                 <RefreshCw size={16} />
             </Button>
-        </section>
+        </article>
     )
 }

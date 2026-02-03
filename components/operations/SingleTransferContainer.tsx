@@ -1,0 +1,190 @@
+"use client";
+
+import { useOperationStore, useSenderStore } from "@/utils/store";
+import { Button } from "../ui/button";
+import { Label } from "../ui/label";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { ALLOWED_TOKENS } from "@/models/transfer";
+import { Input } from "../ui/input";
+import { toast } from "sonner";
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+import { CheckCheck, SendHorizontal, X } from "lucide-react";
+import { TransferStatusContainer } from "./TransferStatusContainer";
+
+export const SingleTransferContainer = () => {
+    const network = useSenderStore(state => state.network);
+    const addressActivated = useSenderStore(state => state.active.address);
+    const validateAddress = useSenderStore(state => state.validateAddress);
+
+    const transferToken = useOperationStore(state => state.transferToken);
+    const setTransferToken = useOperationStore(state => state.setTransferToken);
+    const transferState = useOperationStore(state => state.transferState);
+    const setTransferState = useOperationStore(state => state.setTransferState);
+    const energyRental = useOperationStore(state => state.energyRental);
+    const setEnergyRental = useOperationStore(state => state.setEnergyRental);
+    const singleTransfer = useOperationStore((state) => state.singleTransfer);
+    const isLoading = useOperationStore((state) => state.isLoading);
+
+    const handleTriggleEnergyRental = () => {
+        setEnergyRental({ ...energyRental, enable: !energyRental.enable });
+    }
+
+    const handleToAddressBlur = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        const validated = await validateAddress(value);
+        if (!validated) return e.target.focus();
+        setTransferState("toAddress", value);
+    }
+
+    const handleAmountBlur = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        const amount = Number(value);
+        if (isNaN(amount) || amount <= 0) {
+            toast.warning("Enter a valid amount greater than 0.");
+            return e.target.focus();
+        }
+        setTransferState("amount", Number(value));
+    }
+
+    if (!addressActivated) {
+        return (
+            <div className="w-full flex flex-col gap-y-4">
+                <p className="w-full text-center text-sm text-stone-400" >
+                    activate the address to use this feature.
+                </p>
+            </div>
+        )
+    }
+
+    return (
+        <section className="w-full flex flex-col gap-y-4">
+            <div className="w-full flex justify-between gap-y-2 text-sm text-stone-400">
+                <p>
+                    Create a single TRX / USDT transfer in TRC20 network.
+                </p>
+                <p>
+                    Network: <span className="capitalize">{network}</span>
+                </p>
+            </div>
+
+            <div className="w-full flex flex-col gap-y-2">
+                {/* Chooses token and auto energy rental */}
+                <div className="flex gap-x-2">
+                    <div className="basis-2/3">
+                        <Label>Token</Label>
+                        <Select value={transferToken} onValueChange={setTransferToken} disabled={isLoading}>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select Token" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {Array.from(ALLOWED_TOKENS).map((option) => (
+                                    <SelectItem
+                                        key={option}
+                                        value={option}
+                                        onSelect={() => setTransferToken(option)}
+                                    >
+                                        {option}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="basis-1/3">
+                        <Label>Auto Rent Energy</Label>
+                        <Button className={`${energyRental.enable && "hover:bg-tangerine/40 bg-tangerine/60 text-stone-50"} w-full`}
+                            variant="outline" onClick={handleTriggleEnergyRental} disabled={isLoading}>
+                            <span className="flex items-center gap-x-1">
+                                {energyRental.enable
+                                    ? <>Enabled<CheckCheck /></>
+                                    : <>Disabled<X /></>
+                                }
+                            </span>
+                        </Button>
+                    </div>
+                </div>
+                {/* The receiver address */}
+                <div>
+                    <Label>Receiver Address</Label>
+                    <Input onBlur={handleToAddressBlur} defaultValue={transferState.toAddress} />
+                </div>
+                {/* The transfer amount and send button*/}
+                <div className="flex gap-x-2">
+                    <div className="basis-2/3">
+                        <Label>Amount</Label>
+                        <Input onBlur={handleAmountBlur} defaultValue={transferState.amount} />
+                    </div>
+                    <div className="mt-auto basis-1/3">
+                        <Dialog>
+                            <DialogTrigger asChild>
+                                <Button className="hover:bg-tangerine/40 bg-tangerine/60 text-stone-50 w-full flex items-center gap-x-1"
+                                    disabled={isLoading || transferState.status === "pending"}>
+                                    <span>Send</span><SendHorizontal />
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="border-tangerine/60 max-sm:w-screen max-sm:text-sm">
+                                <DialogHeader>
+                                    <DialogTitle>Single TRC20 Transfer</DialogTitle>
+                                    <DialogDescription>
+                                        Check all the information before confirming the transfer.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="w-full flex flex-col gap-y-4 mt-4">
+                                    <div className="flex justify-between max-sm:flex-col">
+                                        <span className="font-mono">Network:</span>
+                                        <span className="capitalize">{network}</span>
+                                    </div>
+                                    <div className="flex justify-between max-sm:flex-col">
+                                        <span className="font-mono">Token:</span>
+                                        <span>{transferToken}</span>
+                                    </div>
+                                    <div className="flex justify-between max-sm:flex-col overflow-hidden">
+                                        <span className="font-mono">Recipient:</span>
+                                        <span className="break-all">{transferState.toAddress || <p className="text-red-600">N/A</p>}</span>
+                                    </div>
+                                    <div className="flex justify-between max-sm:flex-col">
+                                        <span className="font-mono">Amount:</span>
+                                        <span>{transferState.amount || <p className="text-red-600">N/A</p>}</span>
+                                    </div>
+                                    <div className="flex justify-between max-sm:flex-col">
+                                        <span className="font-mono">Auto Rent Energy:</span>
+                                        <span>{energyRental.enable ? "Enabled" : "Disabled"}</span>
+                                    </div>
+                                </div>
+                                <DialogFooter className="mt-4">
+                                    <div className="flex w-full gap-x-2">
+                                        <DialogClose asChild>
+                                            <Button variant="outline" className="w-0 grow">Close</Button>
+                                        </DialogClose>
+                                        <DialogClose asChild>
+                                            <Button className="hover:bg-tangerine/40 bg-tangerine/60 text-stone-50 w-0 grow"
+                                                onClick={singleTransfer} disabled={isLoading || transferState.status === "pending"}>
+                                                Confirm
+                                            </Button>
+                                        </DialogClose>
+                                    </div>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+                </div>
+            </div>
+
+            <TransferStatusContainer transferType="single" />
+        </section>
+    );
+}

@@ -1,5 +1,6 @@
 import { TronWeb } from "tronweb";
 
+export const DEBOUNCE_TIME = 5000;
 export type Account = Awaited<ReturnType<typeof TronWeb.prototype.trx.getAccount>>;
 export type AccountResource = Awaited<ReturnType<typeof TronWeb.prototype.trx.getAccountResources>>;
 
