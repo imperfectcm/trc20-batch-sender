@@ -51,7 +51,7 @@ export const TransferRecordsContainer = () => {
                 <Table className="w-full">
                     <TableHeader>
                         <TableRow>
-                            {["TxID", "From", "To", "Amount", "Time"].map((header, i) => (
+                            {["Txid", "From", "To", "Amount", "Time"].map((header, i) => (
                                 <TableHead key={header}
                                     className={`${i === 0 && "w-[20%]"} ${header === "Time" && "text-right"}`}
                                 >

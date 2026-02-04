@@ -1,5 +1,5 @@
 export const ALLOWED_TOKENS = new Set(['TRX', 'USDT']);
-type TransferStatus = 'standby' | 'pending' | 'broadcasted' | 'confirmed' | 'failed' | '';
+export type TransferStatus = 'standby' | 'pending' | 'broadcasted' | 'confirmed' | 'failed' | 'timeout';
 
 export type TransferReq = {
     network: string;
@@ -11,6 +11,9 @@ export type TransferReq = {
 }
 
 export type TransferRes = {
-    txID?: string;
+    txid?: string;
     status: TransferStatus;
+    error?: string;
 }
+
+export type TransferItem = TransferReq & TransferRes & { status: TransferStatus };

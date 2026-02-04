@@ -337,7 +337,7 @@ class TronService {
             return estimatedEnergy;
         } catch (error) {
             console.error('Failed to estimate energy:', error);
-            return 131000;
+            throw error;
         }
     }
 
@@ -386,34 +386,54 @@ class TronService {
     }
 
     // Check transaction status via TronWeb API
-    checkTransaction = async (payload: { network?: Network, txID: string, token: string }) => {
-        const { network = "mainnet", txID, token } = payload;
+    checkTransaction = async (payload: { network?: Network, txid: string, token: string }) => {
+        const { network = "mainnet", txid, token } = payload;
         try {
             const tronWeb = this.getInstance(network);
-            const result = await tronWeb.trx.getTransactionInfo(txID);
-            console.log("Transaction Info:", result);
+            const result = await tronWeb.trx.getTransactionInfo(txid);
+            if (!result || Object.keys(result).length === 0) {
+                return { completed: false, confirmed: false }; // Use completed to indicate tx not found
+            }
 
-            if (token === "TRX") {
-                if (result.blockNumber && result.receipt && !result.receipt.result) {
+            const code = result.receipt?.result;
+            if (code) {
+                if (code !== 'SUCCESS') {
                     return {
-                        confirmed: true,
-                        success: true,
+                        completed: true,
+                        confirmed: false,
+                        error: code || "Transaction failed",
                         block: result.blockNumber,
                         timestamp: result.blockTimeStamp,
-                    };
-                }
-            } else {
-                if (result.receipt?.result) {
+                    }
+                } else {
                     return {
-                        confirmed: result.receipt.result === 'SUCCESS',
-                        success: result.receipt.result === 'SUCCESS',
+                        completed: true,
+                        confirmed: true,
                         block: result.blockNumber,
+                        timestamp: result.blockTimeStamp,
+                    }
+                }
+            }
+
+            if (token === "TRX") {
+                if (result.receipt?.result && result.receipt.result !== 'SUCCESS') {
+                    return {
+                        completed: true,
+                        confirmed: false,
+                        blockNumber: result.blockNumber,
+                        timestamp: result.blockTimeStamp,
+                    };
+                } else if (result.blockNumber && result.receipt && !result.receipt.result) {
+                    return {
+                        completed: true,
+                        confirmed: true,
+                        blockNumber: result.blockNumber,
                         timestamp: result.blockTimeStamp,
                     };
                 }
             }
 
-            return { confirmed: false, success: false };
+            return { completed: false, confirmed: false };
         } catch (error) {
             throw error;
         }
@@ -460,7 +480,7 @@ class TronService {
         privateKey: string,
         token: string,
         amount: number,
-    }) => {
+    }): Promise<{ txid: string }> => {
         try {
             const { network, fromAddress, toAddress, privateKey, token, amount } = payload;
             if (amount <= 0) throw new Error("Amount must be greater than zero");
@@ -477,7 +497,10 @@ class TronService {
                     toAddress,
                     amount
                 });
-                return receipt;
+                if (receipt.code) {
+                    throw new Error(receipt.code.toString() || "TRX transfer failed");
+                }
+                return { txid: receipt.txid };
             }
 
             const contractAddress = this.ADDRESS_MAP[token][network];
@@ -502,7 +525,7 @@ class TronService {
                 })
             );
 
-            return { txid: receipt }; // Return the txID
+            return { txid: receipt }; // Return the txid
         } catch (error) {
             throw error;
         }

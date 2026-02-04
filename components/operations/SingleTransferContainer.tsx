@@ -29,36 +29,34 @@ import { TransferStatusContainer } from "./TransferStatusContainer";
 export const SingleTransferContainer = () => {
     const network = useSenderStore(state => state.network);
     const addressActivated = useSenderStore(state => state.active.address);
-    const validateAddress = useSenderStore(state => state.validateAddress);
 
     const transferToken = useOperationStore(state => state.transferToken);
     const setTransferToken = useOperationStore(state => state.setTransferToken);
-    const transferState = useOperationStore(state => state.transferState);
-    const setTransferState = useOperationStore(state => state.setTransferState);
     const energyRental = useOperationStore(state => state.energyRental);
     const setEnergyRental = useOperationStore(state => state.setEnergyRental);
-    const singleTransfer = useOperationStore((state) => state.singleTransfer);
+    const transferData = useOperationStore(state => state.singleTransferData);
+    const updateTransfer = useOperationStore(state => state.updateSingleTransfer);
+    const transferFlow = useOperationStore((state) => state.singleTransferFlow);
     const isLoading = useOperationStore((state) => state.isLoading);
 
     const handleTriggleEnergyRental = () => {
         setEnergyRental({ ...energyRental, enable: !energyRental.enable });
     }
 
-    const handleToAddressBlur = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleToAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
-        const validated = await validateAddress(value);
-        if (!validated) return e.target.focus();
-        setTransferState("toAddress", value);
+        updateTransfer({ "toAddress": value });
     }
 
-    const handleAmountBlur = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
-        const amount = Number(value);
+        const amount = parseFloat(value);
         if (isNaN(amount) || amount <= 0) {
-            toast.warning("Enter a valid amount greater than 0.");
-            return e.target.focus();
+            toast.warning("Enter a valid amount.");
+            updateTransfer({ "amount": 0 });
+            return;
         }
-        setTransferState("amount", Number(value));
+        updateTransfer({ "amount": amount });
     }
 
     if (!addressActivated) {
@@ -120,19 +118,19 @@ export const SingleTransferContainer = () => {
                 {/* The receiver address */}
                 <div>
                     <Label>Receiver Address</Label>
-                    <Input onBlur={handleToAddressBlur} defaultValue={transferState.toAddress} />
+                    <Input onChange={handleToAddressChange} value={transferData.toAddress} />
                 </div>
                 {/* The transfer amount and send button*/}
                 <div className="flex gap-x-2">
                     <div className="basis-2/3">
                         <Label>Amount</Label>
-                        <Input onBlur={handleAmountBlur} defaultValue={transferState.amount} />
+                        <Input onChange={handleAmountChange} value={transferData.amount} />
                     </div>
                     <div className="mt-auto basis-1/3">
                         <Dialog>
                             <DialogTrigger asChild>
                                 <Button className="hover:bg-tangerine/40 bg-tangerine/60 text-stone-50 w-full flex items-center gap-x-1"
-                                    disabled={isLoading || transferState.status === "pending"}>
+                                    disabled={isLoading || transferData.status === "pending"}>
                                     <span>Send</span><SendHorizontal />
                                 </Button>
                             </DialogTrigger>
@@ -154,11 +152,11 @@ export const SingleTransferContainer = () => {
                                     </div>
                                     <div className="flex justify-between max-sm:flex-col overflow-hidden">
                                         <span className="font-mono">Recipient:</span>
-                                        <span className="break-all">{transferState.toAddress || <p className="text-red-600">N/A</p>}</span>
+                                        <span className="break-all">{transferData.toAddress || <p className="text-red-600">N/A</p>}</span>
                                     </div>
                                     <div className="flex justify-between max-sm:flex-col">
                                         <span className="font-mono">Amount:</span>
-                                        <span>{transferState.amount || <p className="text-red-600">N/A</p>}</span>
+                                        <span>{transferData.amount || <p className="text-red-600">N/A</p>}</span>
                                     </div>
                                     <div className="flex justify-between max-sm:flex-col">
                                         <span className="font-mono">Auto Rent Energy:</span>
@@ -172,7 +170,7 @@ export const SingleTransferContainer = () => {
                                         </DialogClose>
                                         <DialogClose asChild>
                                             <Button className="hover:bg-tangerine/40 bg-tangerine/60 text-stone-50 w-0 grow"
-                                                onClick={singleTransfer} disabled={isLoading || transferState.status === "pending"}>
+                                                onClick={transferFlow} disabled={isLoading || transferData.status === "pending"}>
                                                 Confirm
                                             </Button>
                                         </DialogClose>
