@@ -7,7 +7,7 @@ import { TronGridTrc20Transaction } from '@/models/tronResponse';
 import { api } from './api';
 import { pollEnergy } from './pollEnergy';
 import { pollTransaction } from './pollTransaction';
-import { TransferItem, TransferStatus } from '@/models/transfer';
+import { BatchTransferData, SingleTransferData, TransferItem, TransferStatus } from '@/models/transfer';
 
 type ProcessStage = '' | 'standby' | 'estimating-energy' | 'renting-energy' | 'broadcasting' | 'confirming' | 'confirmed' | 'failed' | 'timeout' | 'energy-timeout';
 
@@ -191,6 +191,7 @@ export const useSenderStore = create<SenderStates & SenderActions>()(
             storage: createJSONStorage(() => localStorage),
             partialize: (state) => ({
                 address: state.address,
+                network: state.network,
                 profile: state.profile,
             }),
         }
@@ -201,7 +202,7 @@ type OperationStates = {
     isLoading: boolean;
     transferRecords: TronGridTrc20Transaction[];
 
-    processStage: ProcessStage;
+    processStage: { single: ProcessStage, batch: ProcessStage };
     energyRental: {
         enable: boolean,
         targetTier?: number,
@@ -211,9 +212,10 @@ type OperationStates = {
 
     // Single transfer
     transferToken: string;
-    singleTransferData: Partial<TransferItem>;
+    singleTransferData: Partial<SingleTransferData>;
 
-    batchTransfers: TransferItem[];
+    // Batch transfer
+    batchTransfers: Partial<BatchTransferData>;
 }
 
 type OperationActions = {
@@ -222,19 +224,29 @@ type OperationActions = {
 
     // Single transfer
     setTransferToken: (token: string) => void;
-    updateSingleTransfer: (updates: Partial<TransferItem>) => void;
+    updateSingleTransfer: (updates: Partial<SingleTransferData>) => void;
+    singlePreCheck: () => Promise<boolean>;
+    simulateSingleTransfer: () => Promise<void>;
     singleTransferFlow: () => Promise<void>;
-    clearSingleTransfer: () => void;
 
     // Batch transfer
-    setBatchTransfers: (items: TransferItem[]) => void;
-    updateBatchItemStatus: (id: string, status: TransferStatus, extra?: Partial<TransferItem>) => void;
+    setBatchTransfers: (items: Partial<BatchTransferData>) => void;
+    updateBatchTransfers: (updates: Partial<BatchTransferData>) => void;
+    batchPreCheck: () => Promise<boolean>;
+    simulateBatchTransfer: () => Promise<void>;
+    batchTransferFlow: () => Promise<void>;
+
+    clearSingleTransfer: () => void;
     clearBatchTransfers: () => void;
-    clearProcessStage: () => void;
+    clearProcessStage: (type: "single" | "batch") => void;
+    clearEnergyRental: () => void;
 
+    isSingleTransfering: () => boolean;
+    isBatchTransfering: () => boolean;
     resumeTransferMonitoring: (manual?: boolean) => Promise<void>;
+    resumeBatchTransferMonitoring: (manual?: boolean) => Promise<void>;
 
-    validateAddress: (address: string) => Promise<boolean>;
+    checkAddress: (address: string) => Promise<boolean>;
     fetchTransferRecords: (payload: { network?: Network, address: string }) => Promise<void>;
 }
 
@@ -243,91 +255,155 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
         (set, get) => ({
             isLoading: false,
             transferRecords: [],
-            processStage: '',
+            processStage: { single: '', batch: '' },
             energyRental: { enable: false, isMonitoring: false },
             transferToken: 'TRX',
-            singleTransferData: { status: 'standby', amount: 0, token: 'TRX', toAddress: "" },
-            batchTransfers: [],
+            singleTransferData: { status: 'standby', amount: 0, token: 'TRX', toAddress: "", txid: undefined, error: undefined },
+            batchTransfers: { status: 'standby', token: 'USDT', txid: undefined, error: undefined, data: [] },
 
             setLoading: (isLoading) => set({ isLoading }),
             setEnergyRental: (updates) => set(state => ({ energyRental: { ...state.energyRental, ...updates } })),
             setTransferToken: (token) => set({ transferToken: token }),
+
             updateSingleTransfer: (updates) => set(state => ({ singleTransferData: { ...state.singleTransferData, ...updates } })),
-            clearSingleTransfer: () => set({ singleTransferData: { status: 'standby', amount: 0, token: 'TRX', toAddress: "", error: undefined } }),
+            clearSingleTransfer: () => set({ singleTransferData: { status: 'standby', amount: 0, token: 'TRX', toAddress: "", txid: undefined, error: undefined } }),
+
             setBatchTransfers: (items) => set({ batchTransfers: items }),
-            updateBatchItemStatus: (id, status, extra = {}) => set(state => ({
-                batchTransfers: state.batchTransfers.map(item =>
-                    (item.txid === id) ? { ...item, status, ...extra } : item
-                )
-            })),
-            clearBatchTransfers: () => set({ batchTransfers: [] }),
-            clearProcessStage: () => set({ processStage: '' }),
-            singleTransferFlow: async () => {
+            updateBatchTransfers: (updates) => set(state => ({ batchTransfers: { ...state.batchTransfers, ...updates } })),
+            clearBatchTransfers: () => set({ batchTransfers: { status: 'standby', token: 'USDT', txid: undefined, error: undefined, data: [] } }),
+
+            isSingleTransfering: () => {
+                const { status } = get().singleTransferData;
+                return status === 'pending' || status === 'broadcasted';
+            },
+            isBatchTransfering: () => {
+                const { status } = get().batchTransfers;
+                return status === 'pending' || status === 'broadcasted';
+            },
+
+            clearProcessStage: (type) => set(state => ({ processStage: { ...state.processStage, [type]: '' } })),
+            clearEnergyRental: () => set(state => ({ energyRental: { ...state.energyRental, isMonitoring: false, txid: undefined, targetTier: undefined } })),
+
+            singlePreCheck: async (): Promise<boolean> => {
                 const state = get();
                 const sender = useSenderStore.getState();
-                const { singleTransferData: req, transferToken } = state;
+                const { singleTransferData: req, updateSingleTransfer } = state;
+                let pass = true;
 
-                // 1. Pre-check
                 if (!sender.active.address || !sender.active.privateKey) {
                     toast.warning("Activate account first");
-                    return;
+                    pass = false;
+                }
+                if (!req.toAddress || !req.amount || Number.isNaN(req.amount) || req.amount! <= 0) {
+                    toast.warning("Missing required fields");
+                    pass = false;
                 }
                 if (req.status === 'pending') {
                     toast.warning("Transfer is already in progress");
-                    return;
+                    pass = false;
                 }
-                if (!await sender.validateAddress(req.toAddress || "")) return;
+                if (!await sender.validateAddress(req.toAddress || "")) pass = false;
 
-                set({ isLoading: true });
+                if (!pass) {
+                    updateSingleTransfer({ status: 'standby' });
+                    set({ isLoading: false });
+                }
+                return pass;
+            },
+
+            simulateSingleTransfer: async () => {
+                const state = get();
+                const sender = useSenderStore.getState();
+                const { singlePreCheck, transferToken, updateSingleTransfer, energyRental, clearEnergyRental } = state;
+
+                // Stage 1. Pre-check
+                const preCheckPass = await singlePreCheck();
+                if (!preCheckPass) return;
 
                 try {
-                    // Update Context
-                    if (!req.toAddress || !req.amount || Number.isNaN(req.amount) || req.amount! <= 0) {
-                        toast.warning("Missing required fields");
-                        return;
-                    }
-                    get().updateSingleTransfer({
+                    set({ isLoading: true });
+                    // Stage 2: Update Context
+                    updateSingleTransfer({
                         network: sender.network,
                         fromAddress: sender.address,
                         token: transferToken,
+                        status: 'standby',
+                        txid: undefined,
                         error: undefined,
                     });
+                    clearEnergyRental();
 
-                    // Stage 2: Energy
-                    if (state.energyRental.enable) {
-                        set({ processStage: 'estimating-energy' });
-                        const requiredEnergy = await api<number>('/api/energy/estimation', {
+                    // Stage 3: Simulate transfer
+                    set({ processStage: { ...get().processStage, single: 'estimating-energy' } });
+                    const result = await api<{ energy_used: number }>('/api/transfer/single', {
+                        network: get().singleTransferData.network,
+                        fromAddress: get().singleTransferData.fromAddress,
+                        toAddress: get().singleTransferData.toAddress,
+                        token: get().singleTransferData.token,
+                        amount: get().singleTransferData.amount,
+                        privateKey: sender.privateKey,
+                        simulateOnly: true,
+                    });
+
+                    const requireEnergy = result.energy_used;
+                    if (requireEnergy === 0) {
+                        toast.success("Estimated energy cost is negligible. No rental needed");
+                    }
+                    set({
+                        processStage: { ...get().processStage, single: "standby" },
+                        energyRental: { ...energyRental, targetTier: requireEnergy }
+                    });
+                } catch (error) {
+                    const message = (error as Error).message;
+                    set({
+                        processStage: { ...get().processStage, single: "standby" },
+                        energyRental: { ...energyRental, targetTier: undefined }
+                    });
+                    toast.error(message);
+                } finally {
+                    set({ isLoading: false });
+                }
+            },
+
+            singleTransferFlow: async () => {
+                const state = get();
+                const sender = useSenderStore.getState();
+                const { singlePreCheck, updateSingleTransfer, energyRental } = state;
+
+                // Stage 1. Pre-check
+                const preCheckPass = await singlePreCheck();
+                if (!preCheckPass) return;
+
+                try {
+                    set({ isLoading: true });
+                    // Stage 2: Rent energy
+                    if (energyRental.enable && energyRental.targetTier === undefined) {
+                        toast.warning("Please simulate transfer first to estimate energy.");
+                        return;
+                    }
+                    if (energyRental.enable && energyRental.targetTier && energyRental.targetTier > 0) {
+                        set({ processStage: { ...get().processStage, single: 'renting-energy' } });
+                        const rental = await api<any>('/api/energy/rental', {
                             network: get().singleTransferData.network,
-                            fromAddress: get().singleTransferData.fromAddress,
-                            toAddress: get().singleTransferData.toAddress,
-                            token: get().singleTransferData.token,
-                            amount: get().singleTransferData.amount,
+                            address: get().singleTransferData.fromAddress,
+                            privateKey: sender.privateKey,
+                            energyReq: energyRental.targetTier,
                         });
 
-                        if (requiredEnergy > 0) {
-                            set({ processStage: 'renting-energy' });
-                            const rental = await api<any>('/api/energy/rental', {
-                                network: get().singleTransferData.network,
-                                address: get().singleTransferData.fromAddress,
-                                privateKey: sender.privateKey,
-                                energy: requiredEnergy,
-                            });
-
-                            if (!rental.skip) {
-                                const success = await pollEnergy({ requiredEnergy });
-                                if (!success) {
-                                    set({ processStage: 'energy-timeout' });
-                                    get().updateSingleTransfer({ status: 'timeout' });
-                                    toast.error("Energy rental timed out.");
-                                    return;
-                                }
+                        if (!rental.skip) {
+                            const success = await pollEnergy({ requiredEnergy: energyRental.targetTier });
+                            if (!success) {
+                                set({ processStage: { ...get().processStage, single: 'energy-timeout' } });
+                                get().updateSingleTransfer({ status: 'timeout' });
+                                toast.error("Energy rental timed out.");
+                                return;
                             }
                         }
                     }
 
                     // Stage 3: Broadcast
-                    set({ processStage: 'broadcasting' });
-                    get().updateSingleTransfer({ status: 'pending' });
+                    set({ processStage: { ...get().processStage, single: 'broadcasting' } });
+                    updateSingleTransfer({ status: 'pending' });
 
                     const result = await api<{ txid: string }>('/api/transfer/single', {
                         network: get().singleTransferData.network,
@@ -339,78 +415,346 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                     });
                     const txid = result.txid;
 
-                    set({ processStage: 'confirming' });
-                    get().updateSingleTransfer({ txid, status: 'broadcasted' });
+                    set({ processStage: { ...get().processStage, single: 'confirming' } });
+                    updateSingleTransfer({ txid, status: 'broadcasted' });
 
                     const txConfirmed = await pollTransaction({ txid, token: get().singleTransferData.token || "", network: get().singleTransferData.network as Network });
                     if (!txConfirmed) {
-                        set({ processStage: 'timeout' });
-                        get().updateSingleTransfer({ status: 'timeout' });
+                        set({ processStage: { ...get().processStage, single: 'timeout' } });
+                        updateSingleTransfer({ status: 'timeout' });
                         toast.warning("Transaction confirmation timed out");
                         return;
                     }
 
-                    set({ processStage: 'confirmed' });
-                    get().updateSingleTransfer({ status: 'confirmed' });
+                    set({ processStage: { ...get().processStage, single: 'confirmed' } });
+                    updateSingleTransfer({ status: 'confirmed' });
                 } catch (error) {
                     const message = (error as Error).message;
-                    set({ processStage: 'failed' });
-                    get().updateSingleTransfer({ status: 'failed', error: message });
+                    set({ processStage: { ...get().processStage, single: 'failed' } });
+                    updateSingleTransfer({ status: 'failed', error: message });
                     toast.error(message);
                 } finally {
                     set({ isLoading: false });
                 }
             },
+
+            batchPreCheck: async (): Promise<boolean> => {
+                const state = get();
+                const sender = useSenderStore.getState();
+                const { batchTransfers: req, updateBatchTransfers } = state;
+                let pass = true;
+
+                if (!sender.active.address || !sender.active.privateKey) {
+                    toast.warning("Activate account first");
+                    pass = false;
+                }
+                if (!req.data || req.data.length === 0) {
+                    toast.warning("No valid transfer entry found");
+                    pass = false;
+                }
+                if (req.status === 'pending') {
+                    toast.warning("Transfer is already in progress");
+                    pass = false;
+                }
+                for (const item of req.data || []) {
+                    if (item.warning) {
+                        toast.warning(`Invalid entry: ${item.warning}`);
+                        pass = false;
+                    }
+                }
+                if (!pass) {
+                    set({ isLoading: false });
+                    updateBatchTransfers({ status: 'standby' });
+                }
+                return pass;
+            },
+            simulateBatchTransfer: async () => {
+                const state = get();
+                const sender = useSenderStore.getState();
+                const { batchPreCheck, updateBatchTransfers, energyRental, clearEnergyRental } = state;
+
+                // Stage 1. Pre-check
+                const preCheckPass = await batchPreCheck();
+                if (!preCheckPass) return;
+
+                try {
+                    set({ isLoading: true });
+                    // Stage 2: Update Context
+                    updateBatchTransfers({
+                        network: sender.network,
+                        fromAddress: sender.address,
+                        token: get().batchTransfers.token,
+                        status: 'standby',
+                        txid: undefined,
+                        error: undefined,
+                    });
+                    clearEnergyRental();
+
+                    // Stage 3: Simulate transfer
+                    set({ processStage: { ...get().processStage, batch: 'estimating-energy' } });
+                    const result = await api<{ data: { energy_used: number; timeout: boolean } }>('/api/transfer/batch', {
+                        network: get().batchTransfers.network,
+                        fromAddress: get().batchTransfers.fromAddress,
+                        privateKey: sender.privateKey,
+                        token: get().batchTransfers.token,
+                        recipients: get().batchTransfers.data || [],
+                        simulateOnly: true,
+                    });
+
+                    const data = result.data;
+                    const requireEnergy = data.energy_used;
+                    const timeout = data.timeout;
+                    if (!!timeout) {
+                        toast.warning("Simulation timed out. Please try to preview again.");
+                    }
+                    if (!timeout && requireEnergy === 0) {
+                        toast.success("Estimated energy cost is negligible. No rental needed");
+                    }
+                    set({
+                        processStage: { ...get().processStage, batch: "standby" },
+                        energyRental: { ...energyRental, targetTier: !timeout ? requireEnergy : undefined }
+                    });
+                } catch (error) {
+                    const message = (error as Error).message;
+                    set({
+                        processStage: { ...get().processStage, batch: "standby" },
+                        energyRental: { ...energyRental, targetTier: undefined }
+                    });
+                    toast.error(message);
+                } finally {
+                    set({ isLoading: false });
+                }
+            },
+            batchTransferFlow: async () => {
+                const state = get();
+                const sender = useSenderStore.getState();
+                const { batchPreCheck, updateBatchTransfers, energyRental } = state;
+
+                // Stage 1. Pre-check
+                const preCheckPass = await batchPreCheck();
+                if (!preCheckPass) return;
+
+                try {
+                    set({ isLoading: true });
+                    // Stage 2: Rent energy
+                    if (energyRental.enable && energyRental.targetTier === undefined) {
+                        toast.warning("Please simulate transfer first to estimate energy.");
+                        return;
+                    }
+                    if (energyRental.enable && energyRental.targetTier && energyRental.targetTier > 0) {
+                        set({ processStage: { ...get().processStage, batch: 'renting-energy' } });
+                        const rental = await api<any>('/api/energy/rental', {
+                            network: get().batchTransfers.network,
+                            address: get().batchTransfers.fromAddress,
+                            privateKey: sender.privateKey,
+                            energyReq: energyRental.targetTier,
+                        });
+
+                        if (!rental.skip) {
+                            const success = await pollEnergy({ requiredEnergy: energyRental.targetTier });
+                            if (!success) {
+                                set({ processStage: { ...get().processStage, batch: 'energy-timeout' } });
+                                updateBatchTransfers({ status: 'timeout' });
+                                toast.error("Energy rental timed out.");
+                                return;
+                            }
+                        }
+                    }
+
+                    set({ processStage: { ...get().processStage, batch: 'broadcasting' } });
+                    updateBatchTransfers({
+                        status: 'pending',
+                        network: sender.network,
+                        txid: undefined,
+                        error: undefined,
+                    });
+
+                    const result = await api<{ data: string }>('/api/transfer/batch', {
+                        network: get().batchTransfers.network,
+                        fromAddress: get().batchTransfers.fromAddress,
+                        privateKey: sender.privateKey,
+                        token: get().batchTransfers.token,
+                        recipients: get().batchTransfers.data || []
+                    });
+                    const txid = result.data;
+
+                    set({ processStage: { ...get().processStage, batch: 'confirming' } });
+                    updateBatchTransfers({ txid, status: 'broadcasted' });
+
+                    const txConfirmed = await pollTransaction({ txid, token: get().batchTransfers.token || "", network: get().batchTransfers.network as Network });
+                    if (!txConfirmed) {
+                        set({ processStage: { ...get().processStage, batch: 'timeout' } });
+                        updateBatchTransfers({ status: 'timeout' });
+                        toast.warning("Transaction confirmation timed out");
+                        return;
+                    }
+
+                    set({ processStage: { ...get().processStage, batch: 'confirmed' } });
+                    updateBatchTransfers({ status: 'confirmed' });
+
+                } catch (error) {
+                    const message = (error as Error).message;
+                    set({ processStage: { ...get().processStage, batch: 'failed' } });
+                    updateBatchTransfers({ status: 'failed', error: message });
+                    toast.error(message);
+                } finally {
+                    set({ isLoading: false });
+                }
+            },
+
             resumeTransferMonitoring: async (manual: boolean = false) => {
                 const state = get();
-                const { processStage, energyRental, singleTransferData } = state;
+                const sender = useSenderStore.getState();
+                const { processStage, energyRental, singleTransferData, updateSingleTransfer, isSingleTransfering, isLoading } = state;
 
-                const canResumeEnergyMonitoring = processStage === "renting-energy" && energyRental.txid;
-                if (!manual
-                    && singleTransferData.status !== 'pending'
-                    && singleTransferData.status !== 'broadcasted'
-                    && !canResumeEnergyMonitoring) {
+                // 1. Pre-check
+                if (sender.active.address && !!singleTransferData.fromAddress && sender.address !== singleTransferData.fromAddress) {
+                    toast.info("Cleared tasks from previous account.");
+                    state.clearSingleTransfer();
+                    state.clearProcessStage("single");
+                    state.clearEnergyRental();
                     return;
                 }
+
+                const canResumeEnergyMonitoring = processStage.single === "renting-energy"
+                    && !!energyRental.txid
+                    && !!isSingleTransfering();
+                const canResumeTransferMonitoring = (
+                    singleTransferData.status === 'pending'
+                    || singleTransferData.status === 'broadcasted'
+                    || singleTransferData.status === 'timeout'
+                ) && !!singleTransferData.txid
+                    && !!isSingleTransfering();
+
+                if (!canResumeTransferMonitoring && !canResumeEnergyMonitoring) {
+                    if (manual) toast.info("No interrupted task found to resume.")
+                    return;
+                }
+
+                if (isLoading) return;
                 set({ isLoading: true });
                 try {
+                    // Stage 2A: Energy
                     if (canResumeEnergyMonitoring) {
                         toast.info("Resuming energy rental monitoring...");
+                        set({ processStage: { ...get().processStage, single: 'renting-energy' } });
                         const success = await pollEnergy({ requiredEnergy: energyRental.targetTier || 0 });
                         if (!success) {
-                            set({ processStage: 'energy-timeout' });
-                            get().updateSingleTransfer({ status: 'timeout' });
-                            toast.error("Energy rental timed out.");
+                            set({ processStage: { ...get().processStage, single: 'energy-timeout' } });
+                            updateSingleTransfer({ status: 'timeout' });
+                            toast.warning("Energy rental timed out.");
                         } else {
-                            set({ processStage: '' });
-                            get().updateSingleTransfer({ status: 'standby' });
-                            toast.success("Energy acquired! Please click Transfer again.");
+                            set({
+                                energyRental: { ...energyRental, txid: undefined, isMonitoring: false },
+                                processStage: { ...get().processStage, single: '' },
+                                singleTransferData: { status: 'standby', txid: undefined, error: undefined }
+                            });
+                            toast.success("Energy acquired! Please submit Transfer again immediately.");
                         }
                         return;
                     }
 
-                    set({ processStage: 'confirming' });
-                    toast.info("Resuming transaction confirmation monitoring...");
-                    const txConfirmed = await pollTransaction({ txid: singleTransferData.txid || "", token: singleTransferData.token || "", network: singleTransferData.network as Network });
-                    if (!txConfirmed) {
-                        set({ processStage: 'timeout' });
-                        get().updateSingleTransfer({ status: 'timeout' });
-                        toast.warning("Transaction confirmation timed out");
-                        return;
-                    }
+                    // Stage 2B: Transfer
+                    else if (canResumeTransferMonitoring) {
+                        set({ processStage: { ...get().processStage, single: 'confirming' } });
+                        toast.info("Resuming transaction confirmation monitoring...");
+                        const txConfirmed = await pollTransaction({ txid: singleTransferData.txid!, token: singleTransferData.token || "", network: singleTransferData.network as Network });
+                        if (!txConfirmed) {
+                            set({ processStage: { ...get().processStage, single: 'timeout' } });
+                            updateSingleTransfer({ status: 'timeout' });
+                            toast.warning("Transaction confirmation timed out");
+                            return;
+                        }
 
-                    set({ processStage: 'confirmed' });
-                    get().updateSingleTransfer({ status: 'confirmed' });
+                        set({ processStage: { ...get().processStage, single: 'confirmed' } });
+                        updateSingleTransfer({ status: 'confirmed' });
+                    }
                 } catch (error) {
                     const message = (error as Error).message;
-                    set({ processStage: 'failed' });
-                    get().updateSingleTransfer({ status: 'failed', error: message });
+                    set({ processStage: { ...get().processStage, single: 'failed' } });
+                    updateSingleTransfer({ status: 'failed', error: message });
                     toast.error(message);
                 } finally {
                     set({ isLoading: false });
                 }
             },
-            validateAddress: async (address: string): Promise<boolean> => {
+
+            resumeBatchTransferMonitoring: async (manual: boolean = false) => {
+                const state = get();
+                const sender = useSenderStore.getState();
+                const { batchTransfers, updateBatchTransfers, processStage, energyRental, isBatchTransfering, isLoading } = state;
+
+                if (sender.active.address && !!batchTransfers.fromAddress && sender.address !== batchTransfers.fromAddress) {
+                    toast.info("Cleared tasks from previous account.");
+                    state.clearBatchTransfers();
+                    state.clearProcessStage("batch");
+                    state.clearEnergyRental();
+                    return;
+                }
+
+                const canResumeEnergyMonitoring = processStage.batch === "renting-energy"
+                    && !!energyRental.txid
+                    && !!isBatchTransfering();
+                const canResumeTransferMonitoring = (
+                    batchTransfers.status === 'pending'
+                    || batchTransfers.status === 'broadcasted'
+                    || batchTransfers.status === 'timeout'
+                ) && !!batchTransfers.txid
+                    && !!isBatchTransfering();
+
+                if (!canResumeTransferMonitoring && !canResumeEnergyMonitoring) {
+                    if (manual) toast.info("No interrupted task found to resume.")
+                    return;
+                }
+
+                if (isLoading) return;
+                set({ isLoading: true });
+                try {
+                    // Stage 2A: Energy
+                    if (canResumeEnergyMonitoring) {
+                        toast.info("Resuming energy rental monitoring...");
+                        set({ processStage: { ...get().processStage, batch: 'renting-energy' } });
+                        const success = await pollEnergy({ requiredEnergy: energyRental.targetTier || 0 });
+                        if (!success) {
+                            set({ processStage: { ...get().processStage, batch: 'energy-timeout' } });
+                            get().updateBatchTransfers({ status: 'timeout' });
+                            toast.warning("Energy rental timed out.");
+                        } else {
+                            set({
+                                energyRental: { ...energyRental, txid: undefined, isMonitoring: false },
+                                processStage: { ...get().processStage, batch: '' },
+                            });
+                            updateBatchTransfers({ status: 'standby', txid: undefined, error: undefined });
+                            toast.success("Energy acquired! Please submit Transfer again immediately.");
+                        }
+                        return;
+                    }
+
+                    // Stage 2B: Transfer
+                    else if (canResumeTransferMonitoring) {
+                        set({ processStage: { ...get().processStage, batch: 'confirming' } });
+                        toast.info("Resuming transaction confirmation monitoring...");
+                        const txConfirmed = await pollTransaction({ txid: batchTransfers.txid!, token: batchTransfers.token || "", network: batchTransfers.network as Network });
+                        if (!txConfirmed) {
+                            set({ processStage: { ...get().processStage, batch: 'timeout' } });
+                            updateBatchTransfers({ status: 'timeout' });
+                            toast.warning("Transaction confirmation timed out");
+                            return;
+                        }
+
+                        set({ processStage: { ...get().processStage, batch: 'confirmed' } });
+                        updateBatchTransfers({ status: 'confirmed' });
+                    }
+                } catch (error) {
+                    const message = (error as Error).message;
+                    set({ processStage: { ...get().processStage, batch: 'failed' } });
+                    updateBatchTransfers({ status: 'failed', error: message });
+                    toast.error(message);
+                } finally {
+                    set({ isLoading: false });
+                }
+            },
+            checkAddress: async (address: string): Promise<boolean> => {
                 try {
                     set({ isLoading: true });
                     const valid = await api<boolean>(`/api/validation/address`, { address });
@@ -421,6 +765,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                         toast.success("This is a valid TRON address", { icon: '✓' });
                         return valid;
                     };
+
                 } catch (error) {
                     toast.error((error as Error).message || "Failed to validate address");
                     return false;
@@ -451,8 +796,10 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                 ...state.singleTransferData,
                 privateKey: ''
             },
-
-            batchTransfers: state.batchTransfers,
+            batchTransfers: {
+                ...state.batchTransfers,
+                privateKey: ""
+            }
         }),
     }
     )

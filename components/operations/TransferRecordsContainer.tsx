@@ -34,7 +34,7 @@ export const TransferRecordsContainer = () => {
             {addressActivated ?
                 <div className="w-full flex flex-col gap-y-4">
                     <p className="text-sm text-stone-400" >
-                        Check the 20 most recent confirmed TRC20 transfer records.
+                        Check the 20 most recent confirmed TRC20 transaction records.
                     </p>
                     <div className="flex gap-x-2">
                         <Button variant="outline" onClick={handleClick} disabled={isLoading}>Check Records</Button>
@@ -42,7 +42,7 @@ export const TransferRecordsContainer = () => {
                 </div>
                 :
                 <p className="w-full text-center text-sm text-stone-400" >
-                    activate the address to use this feature.
+                    Activate the address to use this feature.
                 </p>
             }
 

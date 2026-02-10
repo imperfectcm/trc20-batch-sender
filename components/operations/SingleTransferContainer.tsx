@@ -25,6 +25,9 @@ import {
 } from "@/components/ui/dialog";
 import { CheckCheck, SendHorizontal, X } from "lucide-react";
 import { TransferStatusContainer } from "./TransferStatusContainer";
+import { Spinner } from "../ui/spinner";
+import { useReqDebounce } from "@/hooks/useReqDebounce";
+import { useEffect } from "react";
 
 export const SingleTransferContainer = () => {
     const network = useSenderStore(state => state.network);
@@ -36,8 +39,12 @@ export const SingleTransferContainer = () => {
     const setEnergyRental = useOperationStore(state => state.setEnergyRental);
     const transferData = useOperationStore(state => state.singleTransferData);
     const updateTransfer = useOperationStore(state => state.updateSingleTransfer);
+    const simulateTransfer = useOperationStore(state => state.simulateSingleTransfer);
     const transferFlow = useOperationStore((state) => state.singleTransferFlow);
+    const resumeTransferMonitoring = useOperationStore((state) => state.resumeTransferMonitoring);
     const isLoading = useOperationStore((state) => state.isLoading);
+
+    const disable = isLoading || transferData.status === "pending";
 
     const handleTriggleEnergyRental = () => {
         setEnergyRental({ ...energyRental, enable: !energyRental.enable });
@@ -59,11 +66,22 @@ export const SingleTransferContainer = () => {
         updateTransfer({ "amount": amount });
     }
 
+    const debouncedSimulate = useReqDebounce("simulateTransfer", simulateTransfer);
+    const handlePreview = async () => {
+        await debouncedSimulate();
+    };
+
+    useEffect(() => {
+        if (addressActivated) {
+            resumeTransferMonitoring();
+        };
+    }, [addressActivated, resumeTransferMonitoring]);
+
     if (!addressActivated) {
         return (
             <div className="w-full flex flex-col gap-y-4">
                 <p className="w-full text-center text-sm text-stone-400" >
-                    activate the address to use this feature.
+                    Activate the address to use this feature.
                 </p>
             </div>
         )
@@ -73,7 +91,7 @@ export const SingleTransferContainer = () => {
         <section className="w-full flex flex-col gap-y-4">
             <div className="w-full flex justify-between gap-y-2 text-sm text-stone-400">
                 <p>
-                    Create a single TRX / USDT transfer in TRC20 network.
+                    Create a single TRX / USDT transaction in TRC20 network.
                 </p>
                 <p>
                     Network: <span className="capitalize">{network}</span>
@@ -85,7 +103,7 @@ export const SingleTransferContainer = () => {
                 <div className="flex gap-x-2">
                     <div className="basis-2/3">
                         <Label>Token</Label>
-                        <Select value={transferToken} onValueChange={setTransferToken} disabled={isLoading}>
+                        <Select value={transferToken} onValueChange={setTransferToken} disabled={disable}>
                             <SelectTrigger className="w-full">
                                 <SelectValue placeholder="Select Token" />
                             </SelectTrigger>
@@ -105,7 +123,7 @@ export const SingleTransferContainer = () => {
                     <div className="basis-1/3">
                         <Label>Auto Rent Energy</Label>
                         <Button className={`${energyRental.enable && "hover:bg-tangerine/40 bg-tangerine/60 text-stone-50"} w-full`}
-                            variant="outline" onClick={handleTriggleEnergyRental} disabled={isLoading}>
+                            variant="outline" onClick={handleTriggleEnergyRental} disabled={disable}>
                             <span className="flex items-center gap-x-1">
                                 {energyRental.enable
                                     ? <>Enabled<CheckCheck /></>
@@ -118,20 +136,20 @@ export const SingleTransferContainer = () => {
                 {/* The receiver address */}
                 <div>
                     <Label>Receiver Address</Label>
-                    <Input onChange={handleToAddressChange} value={transferData.toAddress} />
+                    <Input disabled={disable} onChange={handleToAddressChange} value={transferData.toAddress} />
                 </div>
                 {/* The transfer amount and send button*/}
                 <div className="flex gap-x-2">
                     <div className="basis-2/3">
                         <Label>Amount</Label>
-                        <Input onChange={handleAmountChange} value={transferData.amount} />
+                        <Input disabled={disable} onChange={handleAmountChange} value={transferData.amount} />
                     </div>
                     <div className="mt-auto basis-1/3">
                         <Dialog>
                             <DialogTrigger asChild>
                                 <Button className="hover:bg-tangerine/40 bg-tangerine/60 text-stone-50 w-full flex items-center gap-x-1"
-                                    disabled={isLoading || transferData.status === "pending"}>
-                                    <span>Send</span><SendHorizontal />
+                                    disabled={disable} onClick={handlePreview}>
+                                    <span>Preview</span><SendHorizontal />
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="border-tangerine/60 max-sm:w-screen max-sm:text-sm">
@@ -159,6 +177,13 @@ export const SingleTransferContainer = () => {
                                         <span>{transferData.amount || <p className="text-red-600">N/A</p>}</span>
                                     </div>
                                     <div className="flex justify-between max-sm:flex-col">
+                                        <span className="font-mono">Energy Required:</span>
+                                        {isLoading
+                                            ? <span><Spinner /></span>
+                                            : <span>{energyRental.targetTier ?? <p className="text-red-600">N/A</p>}</span>
+                                        }
+                                    </div>
+                                    <div className="flex justify-between max-sm:flex-col">
                                         <span className="font-mono">Auto Rent Energy:</span>
                                         <span>{energyRental.enable ? "Enabled" : "Disabled"}</span>
                                     </div>
@@ -166,12 +191,12 @@ export const SingleTransferContainer = () => {
                                 <DialogFooter className="mt-4">
                                     <div className="flex w-full gap-x-2">
                                         <DialogClose asChild>
-                                            <Button variant="outline" className="w-0 grow">Close</Button>
+                                            <Button variant="outline" className="w-0 grow text-stone-400 hover:text-tangerine">Close</Button>
                                         </DialogClose>
                                         <DialogClose asChild>
                                             <Button className="hover:bg-tangerine/40 bg-tangerine/60 text-stone-50 w-0 grow"
-                                                onClick={transferFlow} disabled={isLoading || transferData.status === "pending"}>
-                                                Confirm
+                                                onClick={transferFlow} disabled={disable}>
+                                                Send
                                             </Button>
                                         </DialogClose>
                                     </div>

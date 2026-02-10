@@ -9,12 +9,14 @@ import {
 import { CheckAddressContainer } from "./CheckAddressContainer";
 import { TransferRecordsContainer } from "./TransferRecordsContainer";
 import { SingleTransferContainer } from "./SingleTransferContainer";
+import { BatchTransferContainer } from "./BatchTransferContainer";
 
 const TAB_OPTIONS = [
     { label: "Check Address", value: "check-address" },
     { label: "Check History", value: "check-history" },
     { label: "Single Transfer", value: "single-transfer" },
-] as const;
+    { label: "Batch Transfer", value: "batch-transfer" },
+]
 
 export const OperationTabsContainer = () => {
     return (
@@ -29,6 +31,7 @@ export const OperationTabsContainer = () => {
                     <TabsContent value="check-address"><CheckAddressContainer /></TabsContent>
                     <TabsContent value="check-history"><TransferRecordsContainer /></TabsContent>
                     <TabsContent value="single-transfer"><SingleTransferContainer /></TabsContent>
+                    <TabsContent value="batch-transfer"><BatchTransferContainer /></TabsContent>
                 </div>
             </Tabs>
         </article>

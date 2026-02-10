@@ -43,10 +43,12 @@ export const ProfileContainer = () => {
                     </div>
                 ))}
             </div>
-            <Button variant="ghost" onClick={handleRefresh} disabled={!addressActivated}
-                className={`${!addressActivated && "hidden"} absolute bottom-2 right-2 h-auto p-2 text-stone-600 hover:text-tangerine`}>
-                <RefreshCw size={16} />
-            </Button>
+            {addressActivated && (
+                <Button variant="ghost" onClick={handleRefresh} disabled={!addressActivated}
+                    className={`absolute bottom-2 right-2 h-auto p-2 text-stone-600 hover:text-tangerine`}>
+                    <RefreshCw size={16} />
+                </Button>
+            )}
         </article>
     )
 }

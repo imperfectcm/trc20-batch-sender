@@ -1,9 +1,10 @@
 
-import { TronWeb } from "tronweb";
+import { BigNumber, TronWeb } from "tronweb";
 import { Network } from "@/models/network";
 import { Account, AccountResource, TronGridTrc20Response, TronGridTrc20Transaction } from "@/models/tronResponse";
 import { rateLimiter } from "./rateLimitService";
-import { ALLOWED_TOKENS } from "@/models/transfer";
+import { ALLOWED_TOKENS, RENTAL_PACKAGES } from "@/models/transfer";
+import { batchSenderAbi } from "@/models/abi";
 
 class TronService {
     private static publicInstance: TronWeb;
@@ -16,16 +17,7 @@ class TronService {
         tronscan_shasta: "https://shastapi.tronscan.org",
     }
 
-    static readonly RENTAL_TIERS = {
-        standard: 65000,
-        premium: 131000,
-    } as const;
-
-    private RENT_AMOUNTS: Record<number, number> = {
-        [TronService.RENTAL_TIERS.standard]: 3.00,
-        [TronService.RENTAL_TIERS.premium]: 5.50,
-    }
-
+    private static RENTAL_PACKAGES = RENTAL_PACKAGES;
     private static ALLOWED_TOKENS = ALLOWED_TOKENS;
     private tronZapAddress = "TQssuzjvQbqtmEjmd9sGHuBQMdpvrCov3h";
 
@@ -59,6 +51,10 @@ class TronService {
             mainnet: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
             shasta: "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs"
         },
+        "BATCH_SENDER_CONTRACT": {
+            mainnet: "",
+            shasta: "TEzF63sbFzgSkg8nCZcXKWu6UvzziVoPzx"
+        }
     }
 
     // Select TronWeb instance based on network
@@ -320,20 +316,20 @@ class TronService {
 
             const tokenAmount = tronWeb.BigNumber(amount).times(tronWeb.BigNumber(10).pow(decimals)).toString();
 
-            const result = await rateLimiter.executeWithQueue(
-                async () => await tronWeb.transactionBuilder.triggerConstantContract(
-                    contractAddress,
-                    'transfer(address,uint256)',
-                    {},
-                    [
-                        { type: 'address', value: toAddress },
-                        { type: 'uint256', value: tokenAmount }
-                    ],
-                    fromAddress
-                )
-            );
+            const simulation = await this.simulateTransfer({
+                network,
+                tronWeb,
+                contractAddress,
+                fromAddress,
+                toAddress,
+                tokenAmount,
+                batchMode: false
+            });
+            if (!simulation.result?.result) {
+                throw new Error(simulation.result?.message || "Transaction simulation failed");
+            }
 
-            const estimatedEnergy = result.energy_used || 0;
+            const estimatedEnergy = simulation.energy_used || 0;
             return estimatedEnergy;
         } catch (error) {
             console.error('Failed to estimate energy:', error);
@@ -346,29 +342,39 @@ class TronService {
         network: Network,
         address: string,
         privateKey: string,
-        energy?: number,
+        energyReq?: number,
     }): Promise<{ success: boolean, data?: any, message?: string, skip?: boolean }> => {
         const {
             network,
             address,
             privateKey,
-            energy = 131000,
+            energyReq = 131000,
         } = payload;
 
         try {
             if (network !== "mainnet") return { success: true, message: 'Only mainnet supported for energy rental.', skip: true };
 
-            const targetTier: keyof typeof this.RENT_AMOUNTS = energy > TronService.RENTAL_TIERS.standard
-                ? TronService.RENTAL_TIERS.premium
-                : TronService.RENTAL_TIERS.standard;
-
             const { energy: energyBalance = 0 } = await this.getAccountResources({ network, address });
-            if (energyBalance >= targetTier) {
-                return {
-                    success: true,
-                    message: `Energy sufficient (${energyBalance} >= ${targetTier}).`,
-                    skip: true
-                };
+            const missingEnergy = Math.max(0, energyReq - energyBalance);
+            if (missingEnergy === 0) return { success: true, message: `Energy sufficient.`, skip: true };
+
+            let remainingNeeded = missingEnergy;
+            let totalAmount = 0;
+
+            const premiumPkg = TronService.RENTAL_PACKAGES[0];
+            const premiumCount = Math.floor(remainingNeeded / premiumPkg.energy);
+            if (premiumCount > 0) {
+                totalAmount += premiumCount * premiumPkg.price;
+                remainingNeeded -= premiumCount * premiumPkg.energy;
+            }
+
+            if (remainingNeeded > 0) {
+                const stdPkg = TronService.RENTAL_PACKAGES[1];
+                if (remainingNeeded > stdPkg.energy) {
+                    totalAmount += premiumPkg.price;
+                } else {
+                    totalAmount += stdPkg.price;
+                }
             }
 
             const receipt = await this.transferTrx({
@@ -376,7 +382,7 @@ class TronService {
                 privateKey,
                 fromAddress: address,
                 toAddress: this.tronZapAddress,
-                amount: this.RENT_AMOUNTS[targetTier],
+                amount: totalAmount,
             });
             if (!receipt.result) throw new Error(receipt.message || "Energy rental failed");
             return { success: receipt.result, data: receipt, message: 'Energy rental submitted. Confirmation usually takes 20-60 seconds.' };
@@ -390,7 +396,9 @@ class TronService {
         const { network = "mainnet", txid, token } = payload;
         try {
             const tronWeb = this.getInstance(network);
-            const result = await tronWeb.trx.getTransactionInfo(txid);
+            const result = await rateLimiter.executeWithQueue(
+                async () => await tronWeb.trx.getTransactionInfo(txid)
+            );
             if (!result || Object.keys(result).length === 0) {
                 return { completed: false, confirmed: false }; // Use completed to indicate tx not found
             }
@@ -439,6 +447,60 @@ class TronService {
         }
     }
 
+    // Simulate contract call to check if transaction would succeed and estimate energy
+    private simulateTransfer = async (payload: {
+        tronWeb: TronWeb,
+        network: Network,
+        contractAddress: string,
+        fromAddress: string,
+        batchMode?: boolean,
+        toAddress?: string,
+        tokenAmount?: string,
+        toAddresses?: string[], // Batch transfer
+        tokenAmountStr?: string[] // Batch transfer
+    }) => {
+        const { tronWeb, network, contractAddress, fromAddress, batchMode, toAddress, tokenAmount, toAddresses, tokenAmountStr } = payload;
+
+        // 1. Pre-check
+        if (!batchMode && (!toAddress || !tokenAmount)) {
+            throw new Error("Missing required parameters for single transfer simulation");
+        }
+        if (batchMode && (!toAddresses || !tokenAmountStr)) {
+            throw new Error("Missing required parameters for batch transfer simulation");
+        }
+        if (network === "shasta") {
+            return { result: { result: true, message: "Simulation skipped on Shasta network" }, energy_used: 0 };
+        }
+
+        // 2. Parameter setup
+        const functionSelector = batchMode ? 'multisendToken(address,address[],uint256[])' : 'transfer(address,uint256)';
+        const feeLimit = batchMode ? 500_000_000 : 50_000_000;
+        const parameters = batchMode
+            ? [
+                { type: 'address', value: this.ADDRESS_MAP["USDT"][network] },
+                { type: 'address[]', value: toAddresses },
+                { type: 'uint256[]', value: tokenAmountStr },
+            ]
+            : [
+                { type: 'address', value: toAddress },
+                { type: 'uint256', value: tokenAmount }
+            ];
+
+        // 3. Simulate transaction
+        const result = await rateLimiter.executeWithQueue(
+            async () => await tronWeb.transactionBuilder.triggerConstantContract(
+                contractAddress,
+                functionSelector,
+                { feeLimit },
+                parameters,
+                fromAddress
+            )
+        );
+
+        return result;
+    };
+
+    // Transfer TRX
     transferTrx = async (payload: {
         network: Network,
         privateKey: string,
@@ -473,6 +535,7 @@ class TronService {
         }
     }
 
+    // Transfer TRC20 / TRX tokens (single transfer)
     singleTransfer = async (payload: {
         network: Network,
         fromAddress: string,
@@ -480,9 +543,10 @@ class TronService {
         privateKey: string,
         token: string,
         amount: number,
-    }): Promise<{ txid: string }> => {
+        simulateOnly?: boolean
+    }): Promise<{ success: boolean, data?: any }> => {
         try {
-            const { network, fromAddress, toAddress, privateKey, token, amount } = payload;
+            const { network, fromAddress, toAddress, privateKey, token, amount, simulateOnly = false } = payload;
             if (amount <= 0) throw new Error("Amount must be greater than zero");
 
             const tronWeb = await this.connectPrivateTron({ network, privateKey });
@@ -490,22 +554,28 @@ class TronService {
 
             if (!TronService.ALLOWED_TOKENS.has(token)) throw new Error(`Token ${token} is not supported.`);
             if (token === "TRX") {
-                const receipt = await this.transferTrx({
-                    network,
-                    privateKey,
-                    fromAddress,
-                    toAddress,
-                    amount
-                });
-                if (receipt.code) {
-                    throw new Error(receipt.code.toString() || "TRX transfer failed");
+                if (simulateOnly) {
+                    return {
+                        success: true,
+                        data: { energy_used: 0 }
+                    }
+                } else {
+                    const receipt = await this.transferTrx({
+                        network,
+                        privateKey,
+                        fromAddress,
+                        toAddress,
+                        amount
+                    });
+                    if (receipt.code) {
+                        throw new Error(receipt.code.toString() || "TRX transfer failed");
+                    }
+                    return { success: true, data: { txid: receipt.txid } };
                 }
-                return { txid: receipt.txid };
             }
 
             const contractAddress = this.ADDRESS_MAP[token][network];
-            if (!contractAddress) { throw new Error(`Unsupported token: ${token}`); }
-
+            if (!contractAddress) throw new Error(`Unsupported token: ${token}`);
             const contract = await rateLimiter.executeWithQueue(
                 async () => await tronWeb.contract().at(contractAddress)
             );
@@ -517,17 +587,122 @@ class TronService {
                 .times(tronWeb.BigNumber(10).pow(decimals))
                 .toString();
 
-            const receipt = await rateLimiter.executeWithQueue(
-                async () => await contract.transfer(toAddress, tokenAmount).send({
-                    feeLimit: 50_000_000,
-                    callValue: 0,
-                    shouldPollResponse: false
-                })
-            );
+            if (simulateOnly) {
+                const simulation = await this.simulateTransfer({
+                    network,
+                    tronWeb,
+                    contractAddress,
+                    fromAddress,
+                    toAddress,
+                    tokenAmount,
+                    batchMode: false
+                });
+                if (!simulation.result?.result) {
+                    throw new Error(simulation.result?.message || "Transaction simulation failed");
+                }
+                return { success: true, data: simulation };
+            } else {
+                const txid = await rateLimiter.executeWithQueue(
+                    async () => await contract.transfer(toAddress, tokenAmount).send({
+                        feeLimit: 50_000_000,
+                        callValue: 0,
+                        shouldPollResponse: false
+                    })
+                );
 
-            return { txid: receipt }; // Return the txid
+                return { success: true, data: { txid } };
+            }
         } catch (error) {
             throw error;
+        }
+    }
+
+    batchTransfer = async (payload: {
+        network: Network,
+        fromAddress: string,
+        privateKey: string,
+        token: string,
+        recipients: { toAddress: string, amount: number }[],
+        simulateOnly?: boolean
+    }) => {
+        try {
+            const { network, fromAddress, privateKey, token = "USDT", recipients, simulateOnly = false } = payload;
+
+            // 1. Pre-check
+            if (recipients.length <= 0) throw new Error("No recipients provided");
+            if (token !== "USDT") throw new Error(`Token ${token} is not supported.`); // Only USDT supported for batch transfer
+            const decimals = 6; // USDT decimals
+
+            const tronWeb = await this.connectPrivateTron({ network, privateKey });
+            if (!tronWeb) throw new Error("Failed to connect to TRON network");
+
+            const usdtAddr = this.ADDRESS_MAP["USDT"][network];
+            const batchAddr = this.ADDRESS_MAP["BATCH_SENDER_CONTRACT"][network];
+            if (!usdtAddr || !batchAddr) throw new Error("Contracts configuration missing");
+
+            // 2. Prepare batch transfer data
+            const toAddresses = recipients.map(r => r.toAddress);
+
+            const tokenAmounts = recipients.map(r => { return tronWeb.toBigNumber(r.amount).times(tronWeb.toBigNumber(10).pow(decimals)) });
+            const tokenAmountStr = tokenAmounts.map(a => a.toFixed(0));
+
+            const totalAmount = tokenAmounts.reduce((a: BigNumber, b: BigNumber) => a.plus(b), tronWeb.toBigNumber(0));
+            const totalAmountStr = totalAmount.toFixed(0);
+
+            // 3. Check allowance and approve if needed
+            const usdtContract = await tronWeb.contract().at(usdtAddr);
+            const allowance = await usdtContract.allowance(fromAddress, batchAddr).call();
+
+            if (tronWeb.toBigNumber(allowance).lt(totalAmount)) {
+                const approveTx = await usdtContract.approve(batchAddr, totalAmountStr).send();
+                let allowed: boolean = false;
+                for (let i = 0; i < 20; i++) {
+                    const result = await rateLimiter.executeWithQueue(
+                        async () => await tronWeb.trx.getTransactionInfo(approveTx)
+                    );
+                    if (result && result.receipt?.result === 'SUCCESS') {
+                        allowed = true;
+                        break;
+                    }
+                    await new Promise(res => setTimeout(res, 6000));
+                }
+                if (!allowed) {
+                    return { success: false, timeout: true, message: "Approval transaction not confirmed in time. Please check the transaction status and try again." }
+                }
+            }
+
+            if (simulateOnly) {
+                // 4A. Simulate batch transfer
+                const simulation = await this.simulateTransfer({
+                    tronWeb,
+                    network,
+                    contractAddress: batchAddr,
+                    fromAddress,
+                    toAddresses,
+                    tokenAmountStr,
+                    batchMode: true
+                });
+                if (!simulation.result?.result) {
+                    throw new Error(simulation.result?.message || "Batch transfer simulation failed");
+                }
+                return { success: true, data: simulation };
+            } else {
+                // 4B. Execute batch transfer
+                const batchContract = tronWeb.contract(batchSenderAbi, batchAddr);
+                const txid = await rateLimiter.executeWithQueue(
+                    async () => batchContract.multisendToken(
+                        usdtAddr,
+                        toAddresses,
+                        tokenAmountStr
+                    ).send({
+                        feeLimit: 500_000_000
+                    })
+                );
+                return { success: true, data: txid };
+            }
+        } catch (error) {
+            console.error("Batch Transfer Failed:", error);
+            return { success: false, error: (error as Error).message };
         }
     }
 

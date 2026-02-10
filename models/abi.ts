@@ -19,3 +19,16 @@ export const balanceAbi = [
     }
 ];
 
+export const batchSenderAbi = [
+    {
+        "inputs": [
+            { "internalType": "address", "name": "_token", "type": "address" },
+            { "internalType": "address[]", "name": "_recipients", "type": "address[]" },
+            { "internalType": "uint256[]", "name": "_amounts", "type": "uint256[]" }
+        ],
+        "name": "multisendToken",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+]

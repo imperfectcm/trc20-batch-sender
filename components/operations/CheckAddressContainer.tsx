@@ -7,14 +7,13 @@ import { useOperationStore } from "@/utils/store";
 import { useReqDebounce } from "@/hooks/useReqDebounce";
 
 export const CheckAddressContainer = () => {
-    const validateAddress = useOperationStore(state => state.validateAddress);
+    const checkAddress = useOperationStore(state => state.checkAddress);
     const isLoading = useOperationStore((state) => state.isLoading);
     const [address, setAddress] = useState("");
 
-    const debouncedValidate = useReqDebounce("validateAddress", validateAddress);
-
+    const debouncedCheck = useReqDebounce("checkAddress", checkAddress);
     const handleClick = async () => {
-        await debouncedValidate(address);
+        await debouncedCheck(address);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {

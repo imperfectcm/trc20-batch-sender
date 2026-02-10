@@ -8,19 +8,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             network,
             address,
             privateKey,
-            energy,
+            energyReq,
         } = await request.json() as {
             network: Network,
             address: string,
             privateKey: string,
-            energy?: number,
+            energyReq?: number,
         };
 
         if (!network || !address || !privateKey) {
             return NextResponse.json({ success: false, message: "Missing required fields" }, { status: 400 });
         }
 
-        const payload = { network, address, privateKey, energy };
+        const payload = { network, address, privateKey, energyReq };
         const result = await tronService.rentEnergy(payload);
         return NextResponse.json({ success: result.success, data: result.data || null, message: result.message }, { status: 200 });
     } catch (error) {
