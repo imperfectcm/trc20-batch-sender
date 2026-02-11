@@ -29,7 +29,7 @@ export const CheckAddressContainer = () => {
             </p>
             <div className="flex gap-x-2">
                 <Input value={address} onChange={(e) => setAddress(e.target.value)} onKeyDown={handleKeyDown} />
-                <Button variant="outline" onClick={handleClick} disabled={isLoading}>Check</Button>
+                <Button variant="outline" className="h-auto p-2 text-stone-400 hover:text-tangerine" onClick={handleClick} disabled={isLoading}>Check</Button>
             </div>
         </section>
     )

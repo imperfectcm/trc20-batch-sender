@@ -7,11 +7,14 @@ import { TronGridTrc20Transaction } from '@/models/tronResponse';
 import { api } from './api';
 import { pollEnergy } from './pollEnergy';
 import { pollTransaction } from './pollTransaction';
-import { BatchTransferData, SingleTransferData, TransferItem, TransferStatus } from '@/models/transfer';
+import { BatchTransferData, SingleTransferData } from '@/models/transfer';
+import { Adapter } from '@tronweb3/tronwallet-abstract-adapter';
 
 type ProcessStage = '' | 'standby' | 'estimating-energy' | 'renting-energy' | 'broadcasting' | 'confirming' | 'confirmed' | 'failed' | 'timeout' | 'energy-timeout';
 
 type SenderStates = {
+    adapter: Adapter<string> | null;
+
     pollInterval: NodeJS.Timeout | null;
     network: Network;
     address: string;
@@ -22,6 +25,9 @@ type SenderStates = {
 };
 
 type SenderActions = {
+    connectAdapter: (adapter: Adapter<string>) => Promise<void>;
+    disconnectAdapter: () => void;
+
     setNetwork: (network: Network) => void;
     setAddress: (address: string) => void;
     setPrivateKey: (privateKey: string) => void;
@@ -38,6 +44,27 @@ type SenderActions = {
 export const useSenderStore = create<SenderStates & SenderActions>()(
     persist(
         (set, get) => ({
+            adapter: null,
+            connectAdapter: async (adapter) => {
+                if (adapter.readyState !== "Found" || !adapter.address) {
+                    toast.warning("Adapter not found or address not available");
+                    return;
+                }
+                set({
+                    adapter,
+                    address: adapter.address || "",
+                    active: { address: !!adapter.address, privateKey: true }
+                });
+                toast.success(`Connected to ${adapter.name}`);
+            },
+            disconnectAdapter: () => {
+                set({
+                    adapter: null,
+                    address: "",
+                    active: { address: false, privateKey: false }
+                });
+            },
+
             pollInterval: null,
             network: 'mainnet',
             address: "",
@@ -59,9 +86,14 @@ export const useSenderStore = create<SenderStates & SenderActions>()(
                 if (field === "address") {
                     if (value === true) {
                         get().fetchProfile();
-                        get().startPolling();
                     } else {
                         get().setProfile({ trx: undefined, usdt: undefined, energy: undefined, bandwidth: undefined });
+                    }
+                }
+                if (field === "privateKey") {
+                    if (value === true) {
+                        get().startPolling();
+                    } else {
                         get().stopPolling();
                     }
                 }
@@ -161,7 +193,7 @@ export const useSenderStore = create<SenderStates & SenderActions>()(
                 set({
                     pollInterval: setInterval(() => {
                         const { active, address } = get();
-                        if (active.address && address) {
+                        if (active.address && active.privateKey && address) {
                             get().fetchProfile();
                         }
                     }, intervalMs)
@@ -240,6 +272,7 @@ type OperationActions = {
     clearBatchTransfers: () => void;
     clearProcessStage: (type: "single" | "batch") => void;
     clearEnergyRental: () => void;
+    clearTransferRecords: () => void;
 
     isSingleTransfering: () => boolean;
     isBatchTransfering: () => boolean;
@@ -255,6 +288,8 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
         (set, get) => ({
             isLoading: false,
             transferRecords: [],
+            clearTransferRecords: () => set({ transferRecords: [] }),
+
             processStage: { single: '', batch: '' },
             energyRental: { enable: false, isMonitoring: false },
             transferToken: 'TRX',
@@ -271,6 +306,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
             setBatchTransfers: (items) => set({ batchTransfers: items }),
             updateBatchTransfers: (updates) => set(state => ({ batchTransfers: { ...state.batchTransfers, ...updates } })),
             clearBatchTransfers: () => set({ batchTransfers: { status: 'standby', token: 'USDT', txid: undefined, error: undefined, data: [] } }),
+
 
             isSingleTransfering: () => {
                 const { status } = get().singleTransferData;

@@ -122,7 +122,7 @@ export const SingleTransferContainer = () => {
                     </div>
                     <div className="basis-1/3">
                         <Label>Auto Rent Energy</Label>
-                        <Button className={`${energyRental.enable && "hover:bg-tangerine/40 bg-tangerine/60 text-stone-50"} w-full`}
+                        <Button className={`${energyRental.enable && "hover:bg-tangerine/80 bg-tangerine/60 text-stone-50"} w-full`}
                             variant="outline" onClick={handleTriggleEnergyRental} disabled={disable}>
                             <span className="flex items-center gap-x-1">
                                 {energyRental.enable
@@ -147,7 +147,7 @@ export const SingleTransferContainer = () => {
                     <div className="mt-auto basis-1/3">
                         <Dialog>
                             <DialogTrigger asChild>
-                                <Button className="hover:bg-tangerine/40 bg-tangerine/60 text-stone-50 w-full flex items-center gap-x-1"
+                                <Button className="hover:bg-tangerine/80 bg-tangerine/60 text-stone-50 w-full flex items-center gap-x-1"
                                     disabled={disable} onClick={handlePreview}>
                                     <span>Preview</span><SendHorizontal />
                                 </Button>
@@ -194,7 +194,7 @@ export const SingleTransferContainer = () => {
                                             <Button variant="outline" className="w-0 grow text-stone-400 hover:text-tangerine">Close</Button>
                                         </DialogClose>
                                         <DialogClose asChild>
-                                            <Button className="hover:bg-tangerine/40 bg-tangerine/60 text-stone-50 w-0 grow"
+                                            <Button className="hover:bg-tangerine/80 bg-tangerine/60 text-stone-50 w-0 grow"
                                                 onClick={transferFlow} disabled={disable}>
                                                 Send
                                             </Button>

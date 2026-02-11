@@ -22,26 +22,34 @@ import { TransferStatusContainer } from "./TransferStatusContainer";
 import { useEffect } from "react";
 
 export const BatchTransferContainer = () => {
+    const network = useSenderStore(state => state.network);
     const fromAddress = useSenderStore(state => state.address);
     const privateKey = useSenderStore(state => state.privateKey);
-    const network = useSenderStore(state => state.network);
     const addressActivated = useSenderStore(state => state.active.address);
     const validateAddress = useSenderStore(state => state.validateAddress);
 
     const energyRental = useOperationStore(state => state.energyRental);
     const transfers = useOperationStore(state => state.batchTransfers);
     const setBatchTransfers = useOperationStore(state => state.setBatchTransfers);
+    const updateBatchTransfers = useOperationStore(state => state.updateBatchTransfers);
     const simulateTransfer = useOperationStore(state => state.simulateBatchTransfer);
     const transferFlow = useOperationStore((state) => state.batchTransferFlow);
     const resumeBatchTransferMonitoring = useOperationStore((state) => state.resumeBatchTransferMonitoring);
+
     const clearTransfers = useOperationStore(state => state.clearBatchTransfers);
     const isLoading = useOperationStore((state) => state.isLoading);
 
     const disable = isLoading || transfers.status === "pending";
 
+    const MAX_BATCH_SIZE = 100;
     const handleUpload = async (data: { header?: string[]; data: unknown[] }) => {
-        if (data.header?.join(",") !== ["Recipient_Address", "USDT"].join(",")) {
+        const expectedHeaders = ["Recipient_Address", "USDT"];
+        if (!data.header?.every((word, i) => word === expectedHeaders[i])) {
             toast.warning("CSV header is incorrect. Ensure it matches the sample format.");
+            return;
+        }
+        if (data.data.length > MAX_BATCH_SIZE) {
+            toast.warning(`CSV file exceeds the maximum batch size of ${MAX_BATCH_SIZE}.`);
             return;
         }
         if (!Array.isArray(data.data) || data.data.length === 0) {
@@ -49,48 +57,54 @@ export const BatchTransferContainer = () => {
             return;
         }
 
-        const parsingData = Promise.all([...data.data]
-            .filter((row): row is Record<string, unknown> => typeof row === 'object' && row !== null)
-            .map(async (row) => {
-                if (typeof row === "object" && row !== null) {
-                    const rawAddress = row["Recipient_Address"];
-                    const rawAmount = row["USDT"];
+        try {
+            const parsingPromises = data.data
+                .filter((row): row is Record<string, unknown> => typeof row === 'object' && row !== null)
+                .map(async (row) => {
+                    try {
+                        const rawAddress = row["Recipient_Address"];
+                        const rawAmount = row["USDT"];
 
-                    const toAddress = String(rawAddress || "").trim();
+                        const toAddress = String(rawAddress || "").trim();
+                        if (!toAddress) return null;
 
-                    const amountStr = String(rawAmount || "").replace(/,/g, "");
-                    const amount = parseFloat(amountStr);
+                        const amountStr = String(rawAmount || "").replace(/,/g, "");
+                        const amount = parseFloat(amountStr);
 
-                    if (!toAddress) return null;
+                        const isValidAddr = await validateAddress(toAddress);
+                        if (!isValidAddr) {
+                            return { toAddress, amount, warning: "Invalid address" };
+                        }
 
-                    const isValidAddr = await validateAddress(toAddress);
-                    const isValidAmount = !Number.isNaN(amount) && amount > 0;
+                        const isValidAmount = !Number.isNaN(amount) && amount > 0;
+                        if (!isValidAmount) {
+                            return { toAddress, amount, warning: "Invalid amount" };
+                        }
 
-                    if (!isValidAddr) {
-                        return { toAddress, amount, warning: "Invalid address" };
+                        return { toAddress, amount };
+                    } catch (error) {
+                        console.error("Failed to parsing row:", error);
+                        return null;
                     }
-                    if (!isValidAmount) {
-                        return { toAddress, amount, warning: "Invalid amount" };
-                    }
+                })
+            const parsedData = await Promise.all(parsingPromises);
+            const validData = parsedData.filter((item): item is { toAddress: string; amount: number; warning?: string } => item !== null);
+            const hasWarnings = validData.some(item => item.warning);
 
-                    return { toAddress, amount };
-                }
-            })
-            // .filter((item): item is { toAddress: string; amount: number; warning?: string } => item !== null)
-        )
-
-        const parsedData = await parsingData;
-        const validData = parsedData.filter((item): item is { toAddress: string; amount: number } => !item !== null);
-
-        setBatchTransfers({
-            fromAddress,
-            privateKey,
-            status: 'standby',
-            token: 'USDT',
-            txid: undefined,
-            error: undefined,
-            data: validData
-        });
+            setBatchTransfers({
+                fromAddress,
+                privateKey,
+                status: hasWarnings ? 'failed' : 'standby',
+                token: 'USDT',
+                txid: undefined,
+                error: undefined,
+                data: validData
+            });
+        } catch (error) {
+            toast.error("Error parsing CSV data. Please check the file format.");
+            updateBatchTransfers({ status: "failed", error: "Failed to parsing CSV data" });
+            return;
+        }
     }
 
     const debouncedSimulate = useReqDebounce("simulateBatchTransfer", simulateTransfer);
@@ -140,7 +154,7 @@ export const BatchTransferContainer = () => {
                 <>
                     <BatchTableContainer />
                     <div className="w-full flex justify-end gap-x-2">
-                        <Button variant="outline" className={`h-auto p-2 text-stone-400 hover:text-tangerine`} onClick={clearTransfers}
+                        <Button variant="outline" className="h-auto p-2 text-stone-400 hover:text-tangerine" onClick={clearTransfers}
                             disabled={disable}>
                             <ReplaceAll /> Clear List
                         </Button>

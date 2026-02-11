@@ -1,3 +1,4 @@
+import { AdapterContainer } from "@/components/user-info/AdapterContainer";
 import { SenderAddressContainer } from "@/components/user-info/SenderAddressContainer";
 import { PrivateKeyContainer } from "@/components/user-info/PrivateKeyContainer";
 import { NetworkContainer } from "@/components/user-info/NetworkContainer";
@@ -10,6 +11,7 @@ export default function Home() {
     <div className="master-page-view">
       <main className="page-view items-center sm:items-start gap-y-10">
         <article className="w-full flex flex-col gap-y-4">
+          <AdapterContainer />
           <SenderAddressContainer />
           <PrivateKeyContainer />
           <NetworkContainer />

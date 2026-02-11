@@ -15,7 +15,16 @@ interface InputEndInlineButtonProps {
     isLoading?: boolean;
 }
 
-const InputEndInlineButton = ({ label, defaultValue, placeholder, handleChange, handleClick, type = 'text', activated = false, isLoading = false }: InputEndInlineButtonProps) => {
+const InputEndInlineButton = ({
+    label,
+    defaultValue,
+    placeholder,
+    handleChange,
+    handleClick,
+    type = 'text',
+    activated = false,
+    isLoading = false
+}: InputEndInlineButtonProps) => {
     const id = useId()
 
     const handleKeyDown = (e: React.KeyboardEvent) => {

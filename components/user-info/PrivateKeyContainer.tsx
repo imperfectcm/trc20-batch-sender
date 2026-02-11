@@ -2,6 +2,8 @@
 
 import { useSenderStore } from "@/utils/store";
 import InputEndInlineButton from "../utils/InputEndInlineButton";
+import { useState } from "react";
+import { Eye, EyeClosed } from "lucide-react";
 
 export const PrivateKeyContainer = () => {
     const setPrivateKey = useSenderStore((state) => state.setPrivateKey);
@@ -9,6 +11,8 @@ export const PrivateKeyContainer = () => {
     const setActive = useSenderStore((state) => state.setActive);
     const privateKeyActivated = useSenderStore((state) => state.active.privateKey);
     const isLoading = useSenderStore((state) => state.isLoading);
+
+    const [canView, setCanView] = useState(false);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setPrivateKey(e.target.value);
@@ -21,10 +25,10 @@ export const PrivateKeyContainer = () => {
         setActive('privateKey', true);
     }
 
-    const inputType: "text" | "password" = privateKeyActivated ? "password" : "text";
+    const inputType: "text" | "password" = privateKeyActivated ? "password" : canView ? "text" : "password";
 
     return (
-        <section className="w-full">
+        <section className="relative w-full">
             <InputEndInlineButton
                 label="Private Key"
                 placeholder="Your private key or mnemonic phrase"
@@ -34,6 +38,11 @@ export const PrivateKeyContainer = () => {
                 activated={privateKeyActivated}
                 isLoading={isLoading}
             />
+            {!privateKeyActivated &&
+                <button className="absolute translate-y-1/2 bottom-4.5 right-8 text-stone-600 py-1" onClick={() => setCanView(!canView)}>
+                    {canView ? <Eye size={20} strokeWidth={1} /> : <EyeClosed size={20} strokeWidth={1} />}
+                </button>
+            }
         </section>
     )
 }

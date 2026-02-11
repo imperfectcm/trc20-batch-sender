@@ -17,7 +17,7 @@ export const BatchTableContainer = () => {
         <Table className="w-full">
             <TableHeader>
                 <TableRow>
-                    {["Recipient Address", "Amount", "Remark"].map((header, i) => (
+                    {["Recipient Address", "USDT Amount", "Remark"].map((header, i) => (
                         <TableHead key={header}
                             className={`${i === 0 && "w-[20%]"} ${header === "Time" && "text-right"}`}
                         >
@@ -28,7 +28,7 @@ export const BatchTableContainer = () => {
             </TableHeader>
             <TableBody>
                 {batchTransfers.data?.map((row, index) => (
-                    <TableRow key={index} className={`odd:bg-stone-800 text-sm text-stone-300 ${row.warning && "text-red-500"}`} >
+                    <TableRow key={index} className={`odd:bg-stone-700/50 text-sm text-stone-300 ${row.warning && "text-red-500"}`} >
                         <TableCell className="relative p-2 w-[50%] max-w-0">
                             <div className="truncate text-balance">{row.toAddress}</div>
                         </TableCell>

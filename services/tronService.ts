@@ -253,7 +253,7 @@ class TronService {
     // Get recent TRC20 transfer records
     getRecentTransfers = async (payload: { network?: Network, address: string, limit?: number, onlyConfirmed?: boolean }): Promise<TronGridTrc20Transaction[]> => {
         try {
-            const { network = "mainnet", address, limit = 20, onlyConfirmed } = payload;
+            const { network = "mainnet", address, limit = 50, onlyConfirmed } = payload;
             const baseUrl = this.API_ENDPOINTS[network];
             if (!baseUrl) {
                 throw new Error("Unsupported network");
@@ -276,7 +276,8 @@ class TronService {
             if (!result || !result.success) {
                 throw new Error("Failed to fetch transfer records");
             }
-            return result.data || [];
+            const transfers = result.data.filter(tx => tx.type === "Transfer");
+            return transfers || [];
         } catch (error) {
             throw error;
         }
