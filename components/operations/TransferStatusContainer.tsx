@@ -136,11 +136,11 @@ export const TransferStatusContainer = ({ transferType = "single" }: TransferSta
     if (transferType === "single" && !isBatchTransfering && !!transferData.toAddress && processStage.single !== "") {
         return (
             <article className="relative min-h-60 max-h-[80dvh] w-full flex flex-col gap-y-2 bg-orange-100/10 p-2 rounded-lg">
-                {processStage.single === "standby" && (
+                {processStage.single === "idle" && (
                     <>
                         <section className="rounded-lg p-2 bg-stone-800">
                             <div className="flex">
-                                <p className="font-mono">Standby</p>
+                                <p className="font-mono">Idle</p>
                             </div>
                         </section>
                         <TransferInfoContainer transferData={transferData} ringColor="ring-stone-500" txidColor="text-stone-500" />
@@ -253,11 +253,11 @@ export const TransferStatusContainer = ({ transferType = "single" }: TransferSta
     if (transferType === "batch" && !isSingleTransfering && batchTransfers.data && batchTransfers.data.length > 0 && processStage.batch !== "") {
         return (
             <article className="relative min-h-60 max-h-[80dvh] w-full flex flex-col gap-y-2 bg-orange-100/10 p-2 rounded-lg">
-                {processStage.batch === "standby" && (
+                {processStage.batch === "idle" && (
                     <>
                         <section className="rounded-lg p-2 bg-stone-800">
                             <div className="flex">
-                                <p className="font-mono">Standby</p>
+                                <p className="font-mono">Idle</p>
                             </div>
                         </section>
                         <BatchTransferInfoContainer batchTransfers={batchTransfers} ringColor="ring-stone-500" txidColor="text-stone-500" />

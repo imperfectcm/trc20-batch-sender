@@ -8,7 +8,7 @@ import { Eye, EyeClosed } from "lucide-react";
 export const PrivateKeyContainer = () => {
     const setPrivateKey = useSenderStore((state) => state.setPrivateKey);
     const validatePrivateKey = useSenderStore((state) => state.validatePrivateKey);
-    const setActive = useSenderStore((state) => state.setActive);
+    const updateActive = useSenderStore((state) => state.updateActive);
     const privateKeyActivated = useSenderStore((state) => state.active.privateKey);
     const isLoading = useSenderStore((state) => state.isLoading);
 
@@ -22,7 +22,7 @@ export const PrivateKeyContainer = () => {
         const privateKey = useSenderStore.getState().privateKey;
         const isValid = await validatePrivateKey(privateKey);
         if (!isValid) return;
-        setActive('privateKey', true);
+        updateActive({ privateKey: true });
     }
 
     const inputType: "text" | "password" = privateKeyActivated ? "password" : canView ? "text" : "password";

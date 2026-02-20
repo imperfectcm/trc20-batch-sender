@@ -7,18 +7,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const {
             network = "mainnet",
             fromAddress,
-            token = 'USDT',
-            recipients,
-            simulateOnly = false
-        } = await request.json() as { network: Network, fromAddress: string, token: string, recipients: { toAddress: string, amount: number }[], simulateOnly: boolean };
-        if (!fromAddress || recipients.length === 0) {
+            token
+        } = await request.json() as { network: Network, fromAddress: string, token: string };
+        if (!fromAddress || !token) {
             return NextResponse.json({ success: false, message: "Missing required fields" }, { status: 400 });
         }
 
-        const data = await tronService.buildBatchTransfer({ network, fromAddress, token, recipients, simulateOnly });
-        return NextResponse.json({ success: true, data }, { status: 200 });
+        const result = await tronService.checkAllowance({ network, fromAddress, token });
+        return NextResponse.json({ success: true, data: { allowance: result.allowanceStr } }, { status: 200 });
     } catch (error) {
-        console.error("[API_ERROR] /transfer/batch: ", error);
+        console.error("[API_ERROR] /transfer/allowance: ", error);
         return NextResponse.json({ success: false, message: (error as Error).message || "Internal Server Error" }, { status: 500 });
     }
 }

@@ -33,8 +33,6 @@ export const SingleTransferContainer = () => {
     const network = useSenderStore(state => state.network);
     const addressActivated = useSenderStore(state => state.active.address);
 
-    const transferToken = useOperationStore(state => state.transferToken);
-    const setTransferToken = useOperationStore(state => state.setTransferToken);
     const energyRental = useOperationStore(state => state.energyRental);
     const setEnergyRental = useOperationStore(state => state.setEnergyRental);
     const transferData = useOperationStore(state => state.singleTransferData);
@@ -103,7 +101,7 @@ export const SingleTransferContainer = () => {
                 <div className="flex gap-x-2">
                     <div className="basis-2/3">
                         <Label>Token</Label>
-                        <Select value={transferToken} onValueChange={setTransferToken} disabled={disable}>
+                        <Select value={transferData.token} onValueChange={(value) => updateTransfer({ token: value })} disabled={disable}>
                             <SelectTrigger className="w-full">
                                 <SelectValue placeholder="Select Token" />
                             </SelectTrigger>
@@ -112,7 +110,6 @@ export const SingleTransferContainer = () => {
                                     <SelectItem
                                         key={option}
                                         value={option}
-                                        onSelect={() => setTransferToken(option)}
                                     >
                                         {option}
                                     </SelectItem>
@@ -166,7 +163,7 @@ export const SingleTransferContainer = () => {
                                     </div>
                                     <div className="flex justify-between max-sm:flex-col">
                                         <span className="font-mono">Token:</span>
-                                        <span>{transferToken}</span>
+                                        <span>{transferData.token}</span>
                                     </div>
                                     <div className="flex justify-between max-sm:flex-col overflow-hidden">
                                         <span className="font-mono">Recipient:</span>

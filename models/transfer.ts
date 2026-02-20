@@ -4,7 +4,7 @@ export const RENTAL_PACKAGES = [
     { energy: 65000, price: 3.00, id: 'standard' }
 ] as const;
 
-export type TransferStatus = 'standby' | 'pending' | 'broadcasted' | 'confirmed' | 'failed' | 'timeout';
+export type TransferStatus = 'idle' | 'pending' | 'broadcasted' | 'confirmed' | 'failed' | 'timeout';
 
 export type TransferReq = {
     network: string;

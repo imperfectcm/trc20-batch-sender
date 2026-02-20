@@ -5,14 +5,15 @@ import { Button } from "../ui/button"
 import { LockOpen } from "lucide-react";
 
 export const UnlockProfileButton = () => {
+    const adapter = useSenderStore((state) => state.adapter);
     const active = useSenderStore((state) => state.active);
-    const setActive = useSenderStore((state) => state.setActive);
+    const disconnectAdapter = useSenderStore((state) => state.disconnectAdapter);
 
     const operationLoading = useOperationStore((state) => state.isLoading);
 
     const handleUnlockInput = () => {
-        setActive('address', false);
-        setActive('privateKey', false);
+        if (adapter) adapter.disconnect();
+        disconnectAdapter();
     }
 
     return (

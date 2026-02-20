@@ -2,7 +2,7 @@ import { Network } from "@/models/network";
 import { TronWeb } from "tronweb";
 import { TronLinkAdapter } from '@tronweb3/tronwallet-adapters';
 
-interface ISigner {
+export interface ISigner {
     getAddress(): string;
     getTronWeb(): TronWeb;
     sign(transaction: any): Promise<any>;

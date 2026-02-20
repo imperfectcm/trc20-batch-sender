@@ -5,15 +5,25 @@ import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { useOperationStore } from "@/utils/store";
 import { useReqDebounce } from "@/hooks/useReqDebounce";
+import { toast } from "sonner";
 
 export const CheckAddressContainer = () => {
-    const checkAddress = useOperationStore(state => state.checkAddress);
+    const validateAddress = useOperationStore(state => state.validateAddress);
     const isLoading = useOperationStore((state) => state.isLoading);
     const [address, setAddress] = useState("");
 
-    const debouncedCheck = useReqDebounce("checkAddress", checkAddress);
+    const debouncedCheck = useReqDebounce("validateAddress", validateAddress);
     const handleClick = async () => {
-        await debouncedCheck(address);
+        try {
+            const isValided = await debouncedCheck(address);
+            if (isValided) {
+                toast.success("The address is valid.", { icon: '✔' });
+            } else {
+                toast.error("Invalid TRON address", { icon: '✘' });
+            }
+        } catch (error) {
+            toast.error((error as Error).message || "Failed to validate address");
+        }
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {

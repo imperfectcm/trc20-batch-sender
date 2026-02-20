@@ -4,9 +4,10 @@ import { useSenderStore } from "@/utils/store";
 import InputEndInlineButton from "../utils/InputEndInlineButton";
 
 export const SenderAddressContainer = () => {
+    const address = useSenderStore((state) => state.address);
     const setAddress = useSenderStore((state) => state.setAddress);
     const validateAddress = useSenderStore((state) => state.validateAddress);
-    const setActive = useSenderStore((state) => state.setActive);
+    const updateActive = useSenderStore((state) => state.updateActive);
     const addressActivated = useSenderStore((state) => state.active.address);
     const isLoading = useSenderStore((state) => state.isLoading);
 
@@ -15,21 +16,20 @@ export const SenderAddressContainer = () => {
     }
 
     const handleActivateAddress = async () => {
-        const address = useSenderStore.getState().address;
-        const isValid = await validateAddress(address);
+        const isValid = await validateAddress();
         if (!isValid) return;
-        setActive('address', true);
+        updateActive({ address: true });
     }
 
     return (
         <section className="w-full">
             <InputEndInlineButton
+                type="text"
                 label="Sender Address"
-                defaultValue={useSenderStore.getState().address}
+                value={address}
                 placeholder="Your TRON address"
                 handleChange={handleChange}
                 handleClick={handleActivateAddress}
-                type="text"
                 activated={addressActivated}
                 isLoading={isLoading}
             />

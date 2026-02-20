@@ -5,23 +5,23 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 interface InputEndInlineButtonProps {
+    type?: 'text' | 'password' | 'email';
     label: string;
-    defaultValue?: string;
+    value?: string;
     placeholder?: string;
     handleChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
     handleClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
-    type?: 'text' | 'password' | 'email';
     activated?: boolean;
     isLoading?: boolean;
 }
 
 const InputEndInlineButton = ({
+    type = 'text',
     label,
-    defaultValue,
+    value,
     placeholder,
     handleChange,
     handleClick,
-    type = 'text',
     activated = false,
     isLoading = false
 }: InputEndInlineButtonProps) => {
@@ -38,7 +38,7 @@ const InputEndInlineButton = ({
             <Label htmlFor={id}>{label}</Label>
             <div className='w-full flex items-center gap-x-2'>
                 <div className='grow relative'>
-                    <Input id={id} type={type} defaultValue={defaultValue} placeholder={placeholder} className='pr-9' onChange={handleChange} onKeyDown={handleKeyDown} disabled={activated} readOnly={activated || isLoading} />
+                    <Input id={id} type={type} value={value} placeholder={placeholder} className='pr-9' onChange={handleChange} onKeyDown={handleKeyDown} disabled={activated} readOnly={activated || isLoading} />
                     <Button
                         variant='ghost'
                         size='icon'

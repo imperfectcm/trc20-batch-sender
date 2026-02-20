@@ -7,8 +7,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSenderStore } from '@/utils/store';
 import { toast } from 'sonner';
 import { WalletReadyState } from '@tronweb3/tronwallet-abstract-adapter';
+import { Unplug } from 'lucide-react';
 
 const WalletButtons = ({ readyState }: { readyState: WalletReadyState }) => {
+    const addressActivated = useSenderStore((state) => state.active.address);
     const connectAdapter = useSenderStore(state => state.connectAdapter);
     const disconnectAdapter = useSenderStore(state => state.disconnectAdapter);
 
@@ -16,7 +18,7 @@ const WalletButtons = ({ readyState }: { readyState: WalletReadyState }) => {
     function onSelect() {
         select(TronLinkAdapterName);
     }
-    async function onConnect() {
+    const onConnect = async () => {
         try {
             await connect();
         } catch (error) {
@@ -25,14 +27,17 @@ const WalletButtons = ({ readyState }: { readyState: WalletReadyState }) => {
     }
 
     useEffect(() => {
-        if (connected && wallet?.adapter.address) {
-            connectAdapter(wallet.adapter);
-        } else {
-            disconnectAdapter();
+        if (connected && wallet) {
+            connectAdapter(wallet.adapter as TronLinkAdapter);
         }
-    }, [connected, wallet?.adapter.address]);
+    }, [connected, wallet]);
 
-    if (readyState !== WalletReadyState.Found) {
+    const onDisconnect = () => {
+        disconnect();
+        disconnectAdapter();
+    }
+
+    if (readyState !== WalletReadyState.Found || (!connected && addressActivated)) {
         return null;
     }
     return (
@@ -52,20 +57,21 @@ const WalletButtons = ({ readyState }: { readyState: WalletReadyState }) => {
                     ))}
                 </div>
                 :
-                <p className='font-mono text-stone-500'>Connected: {wallet?.adapter.name}</p>
+                <p className='font-mono text-stone-500'>Connected: {wallet ? wallet.adapter.name : 'Manual Config'}</p>
             }
 
-            {!connected ? (
+            {!connected
+                ?
                 <Button variant="outline" className='h-auto p-2 text-stone-400 hover:text-tangerine'
                     onClick={onConnect}>
                     Connect {wallet?.adapter.name || 'Wallet'}
                 </Button>
-            ) : (
+                :
                 <Button variant="outline" className='h-auto p-2 text-stone-400 hover:text-tangerine'
-                    onClick={disconnect}>
-                    Disconnect
+                    onClick={onDisconnect}>
+                    <Unplug /> Disconnect
                 </Button>
-            )}
+            }
         </div>
     );
 }

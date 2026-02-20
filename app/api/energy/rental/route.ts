@@ -7,22 +7,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const {
             network,
             address,
-            privateKey,
             energyReq,
         } = await request.json() as {
             network: Network,
             address: string,
-            privateKey: string,
             energyReq?: number,
         };
 
-        if (!network || !address || !privateKey) {
+        if (!network || !address) {
             return NextResponse.json({ success: false, message: "Missing required fields" }, { status: 400 });
         }
 
-        const payload = { network, address, privateKey, energyReq };
+        const payload = { network, address, energyReq };
         const result = await tronService.rentEnergy(payload);
-        return NextResponse.json({ success: result.success, data: result.data || null, message: result.message }, { status: 200 });
+        return NextResponse.json({ success: result.success, data: result.data, message: "Energy rental successful", skip: result.skip }, { status: result.success ? 200 : 400 });
     } catch (error) {
         console.error("[API_ERROR] /energy/rental: ", error);
         return NextResponse.json({ success: false, message: (error as Error).message || "Internal Server Error" }, { status: 500 });

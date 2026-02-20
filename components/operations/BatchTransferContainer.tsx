@@ -26,8 +26,8 @@ export const BatchTransferContainer = () => {
     const fromAddress = useSenderStore(state => state.address);
     const privateKey = useSenderStore(state => state.privateKey);
     const addressActivated = useSenderStore(state => state.active.address);
-    const validateAddress = useSenderStore(state => state.validateAddress);
 
+    const validateAddress = useOperationStore(state => state.validateAddress);
     const energyRental = useOperationStore(state => state.energyRental);
     const transfers = useOperationStore(state => state.batchTransfers);
     const setBatchTransfers = useOperationStore(state => state.setBatchTransfers);
@@ -94,8 +94,8 @@ export const BatchTransferContainer = () => {
             setBatchTransfers({
                 fromAddress,
                 privateKey,
-                status: hasWarnings ? 'failed' : 'standby',
-                token: 'USDT',
+                status: hasWarnings ? "failed" : "idle",
+                token: "USDT",
                 txid: undefined,
                 error: undefined,
                 data: validData
