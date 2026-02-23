@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useSenderStore } from "@/utils/store";
 import { RefreshCw } from "lucide-react";
 import { Button } from "../ui/button";
@@ -23,9 +24,14 @@ export const ProfileContainer = () => {
     const fetchProfile = useSenderStore((state) => state.fetchProfile);
 
     const debouncedFetch = useReqDebounce("fetchProfile", fetchProfile);
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
     const handleRefresh = async () => {
+        setIsRefreshing(true);
         await debouncedFetch();
+        setTimeout(() => {
+            setIsRefreshing(false);
+        }, 1000)
     };
 
     return (
@@ -46,7 +52,7 @@ export const ProfileContainer = () => {
             {addressActivated && (
                 <Button variant="ghost" onClick={handleRefresh} disabled={!addressActivated}
                     className={`absolute bottom-2 right-2 h-auto p-2 text-stone-600 hover:text-tangerine`}>
-                    <RefreshCw size={16} />
+                    <RefreshCw size={16} className={`${isRefreshing && "animate-spin text-tangerine"}`} />
                 </Button>
             )}
         </article>

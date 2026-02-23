@@ -20,7 +20,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
         const payload = { network, address, energyReq };
         const result = await tronService.rentEnergy(payload);
-        return NextResponse.json({ success: result.success, data: result.data, message: "Energy rental successful", skip: result.skip }, { status: result.success ? 200 : 400 });
+        if (!result.unsignedTx && !result.skip) throw new Error(result.message || "Energy rental failed");
+        return NextResponse.json({ success: true, data: { unsignedTx: result.unsignedTx, skip: result.skip }, message: "Energy rental successful" }, { status: 200 });
     } catch (error) {
         console.error("[API_ERROR] /energy/rental: ", error);
         return NextResponse.json({ success: false, message: (error as Error).message || "Internal Server Error" }, { status: 500 });

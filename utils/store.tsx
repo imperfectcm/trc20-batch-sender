@@ -9,9 +9,8 @@ import { pollEnergy } from './pollEnergy';
 import { BatchTransferData, SingleTransferData } from '@/models/transfer';
 import { TronLinkAdapter } from '@tronweb3/tronwallet-adapters';
 import TronFrontendService from '@/services/frontend/tronService';
-import tronService from '@/services/tronService';
 
-type ProcessStage = '' | 'idle' | 'estimating-energy' | 'renting-energy' | 'broadcasting' | 'confirming' | 'confirmed' | 'failed' | 'timeout' | 'energy-timeout';
+type ProcessStage = '' | 'idle' | 'approving' | 'estimating-energy' | 'renting-energy' | 'broadcasting' | 'confirming' | 'confirmed' | 'failed' | 'timeout' | 'energy-timeout';
 
 type SenderStates = {
     adapter: TronLinkAdapter | null;
@@ -53,11 +52,12 @@ export const useSenderStore = create<SenderStates & SenderActions>()(
                     toast.warning("Adapter not found or address not available");
                     return;
                 }
+                const { updateActive } = get()
                 set({
                     adapter,
-                    address: adapter.address || "",
-                    active: { address: !!adapter.address, privateKey: !!adapter.address }
+                    address: adapter.address || ""
                 });
+                updateActive({ address: !!adapter.address, privateKey: !!adapter.address });
                 toast.success(`Connected to ${adapter.name}`);
             },
             disconnectAdapter: () => {
@@ -148,10 +148,9 @@ export const useSenderStore = create<SenderStates & SenderActions>()(
                     toast.error((error as Error).message || "Failed to fetch profile");
                 }
             },
-            startPolling: (intervalMs = 15000) => {
+            startPolling: (intervalMs = 20000) => {
                 const { pollInterval } = get();
                 if (pollInterval) return;
-
                 set({
                     pollInterval: setInterval(() => {
                         const { active, address } = get();
@@ -222,6 +221,7 @@ type OperationActions = {
     setBatchTransfers: (items: Partial<BatchTransferData>) => void;
     updateBatchTransfers: (updates: Partial<BatchTransferData>) => void;
     batchPreCheck: () => Promise<boolean>;
+    approveBatchTransfer: () => Promise<boolean>;
     simulateBatchTransfer: () => Promise<void>;
     batchTransferFlow: () => Promise<void>;
 
@@ -455,6 +455,88 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                 }
                 return pass;
             },
+            approveBatchTransfer: async (): Promise<boolean> => {
+                const state = get();
+                const sender = useSenderStore.getState();
+                const { batchPreCheck, updateBatchTransfers } = state;
+
+                // 1. Pre-check
+                const preCheckPass = await batchPreCheck();
+                if (!preCheckPass) return false;
+
+                try {
+                    set({ isLoading: true });
+                    const mode = sender.adapter ? "adapter" : "privateKey";
+                    const tron = new TronFrontendService(mode, { network: sender.network as Network, privateKey: sender.privateKey });
+
+                    // 2: Update Context
+                    set({ processStage: { ...get().processStage, batch: 'idle' } });
+                    updateBatchTransfers({
+                        network: sender.network,
+                        fromAddress: sender.address,
+                        token: get().batchTransfers.token,
+                        status: 'idle',
+                        txid: undefined,
+                        error: undefined,
+                    });
+
+                    // 3. Check allowance and approve if needed
+                    const allowance = await tron.checkAllowance({
+                        network: get().batchTransfers.network as Network,
+                        token: get().batchTransfers.token || "",
+                        recipients: get().batchTransfers.data || [],
+                    });
+                    if (allowance.sufficient) {
+                        return true; // No need to approve, proceed to transfer
+                    }
+                    
+                    // 4. UX for adapter approval
+                    if (mode === "adapter") {
+                        const totalAmount = get().batchTransfers.data?.reduce((sum, item) => sum + (item.amount || 0), 0) || 0;
+                        toast("Batch Transfer Approval", {
+                            description: (
+                                <div className="space-y-1 text-sm">
+                                    <p>Spending cap required: <strong className='text-tangerine'>{totalAmount} USDT</strong></p>
+                                    <p>Please enter this amount in the TronLink spending cap field to proceed.</p>
+                                    <p className="text-muted-foreground">To avoid future approval fees, you may enter a larger amount (e.g. 999999 USDT) to set a long-term spending limit.</p>
+                                </div>
+                            ),
+                            duration: 10000,
+                            position: "top-center",
+                        });
+                    }
+                    const approval = await tron.approveBatchTransfer({
+                        network: get().batchTransfers.network as Network,
+                        token: get().batchTransfers.token || "",
+                        totalAmount: allowance.totalAmount,
+                        hasPrivateKey: mode === "privateKey",
+                    })
+                    if (!approval.txid) {
+                        throw new Error("Failed to approve transaction");
+                    }
+
+                    // 5. Monitor approval transaction
+                    set({ processStage: { ...get().processStage, batch: 'approving' } });
+                    updateBatchTransfers({ status: "pending", txid: approval.txid });
+                    const confirmed = await tron.pollTx(approval.txid);
+                    if (!confirmed) {
+                        throw new Error("Approval transaction not confirmed in time");
+                    }
+
+                    set({ processStage: { ...get().processStage, batch: 'idle' } });
+                    updateBatchTransfers({ status: "idle", txid: undefined });
+                    return true;
+
+                } catch (error) {
+                    const message = (error as Error).message;
+                    set({ processStage: { ...get().processStage, batch: 'failed' } });
+                    updateBatchTransfers({ status: 'failed', error: message });
+                    toast.error(message);
+                    return false;
+                } finally {
+                    set({ isLoading: false });
+                }
+            },
             simulateBatchTransfer: async () => {
                 const state = get();
                 const sender = useSenderStore.getState();
@@ -519,7 +601,8 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                 try {
                     set({ isLoading: true });
                     const mode = sender.adapter ? "adapter" : "privateKey";
-                    const tron = new TronFrontendService(mode, { network: get().singleTransferData.network as Network, privateKey: sender.privateKey });
+                    const tron = new TronFrontendService(mode, { network: get().batchTransfers.network as Network, privateKey: sender.privateKey });
+
                     // 2: Rent energy
                     if (energyRental.enable && energyRental.targetTier === undefined) {
                         toast.warning("Please simulate transfer first to estimate energy.");
@@ -528,8 +611,8 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                     if (energyRental.enable && energyRental.targetTier && energyRental.targetTier > 0) {
                         set({ processStage: { ...get().processStage, batch: 'renting-energy' } });
                         const rental = await tron.rentEnergy({
-                            network: get().singleTransferData.network as Network,
-                            address: get().singleTransferData.fromAddress || "",
+                            network: get().batchTransfers.network as Network,
+                            address: get().batchTransfers.fromAddress || "",
                             energyReq: energyRental.targetTier,
                         });
 
@@ -551,14 +634,6 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                         txid: undefined,
                         error: undefined,
                     });
-                    const approval = await tron.approveBatchTransfer({
-                        network: get().batchTransfers.network as Network,
-                        token: get().batchTransfers.token || "",
-                        recipients: get().batchTransfers.data || []
-                    })
-                    if (!approval.sufficient && !approval.txid) {
-                        throw new Error("Insufficient allowance and failed to approve");
-                    }
                     const { txid } = await tron.batchTransfer({
                         network: get().batchTransfers.network as Network,
                         token: get().batchTransfers.token || "",

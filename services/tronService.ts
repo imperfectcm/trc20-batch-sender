@@ -37,7 +37,7 @@ class TronService {
             shasta: "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs"
         },
         "BATCH_SENDER_CONTRACT": {
-            mainnet: "",
+            mainnet: "TVHa5pgvGtSgtbyKLxgQvM3CWKVpgxHHat",
             shasta: "TEzF63sbFzgSkg8nCZcXKWu6UvzziVoPzx"
         }
     }
@@ -329,7 +329,7 @@ class TronService {
         network: Network,
         address: string,
         energyReq?: number,
-    }): Promise<{ success: boolean, data?: Transaction, message?: string, skip?: boolean }> => {
+    }): Promise<{ unsignedTx?: Transaction, message?: string, skip?: boolean }> => {
         const {
             network,
             address,
@@ -337,11 +337,11 @@ class TronService {
         } = payload;
 
         try {
-            if (network !== "mainnet") return { success: true, message: 'Only mainnet supported for energy rental.', skip: true };
+            if (network !== "mainnet") return { message: 'Only mainnet supported for energy rental.', skip: true };
 
             const { energy: energyBalance = 0 } = await this.getAccountResources({ network, address });
             const missingEnergy = Math.max(0, energyReq - energyBalance);
-            if (missingEnergy === 0) return { success: true, message: `Energy sufficient.`, skip: true };
+            if (missingEnergy === 0) return { message: `Energy sufficient.`, skip: true };
 
             let remainingNeeded = missingEnergy;
             let totalAmount = 0;
@@ -361,15 +361,16 @@ class TronService {
                     totalAmount += stdPkg.price;
                 }
             }
-
+            console.info("Process 7. Energy rental calculation: ", { energyBalance, missingEnergy, premiumCount, totalAmount });
             const res = await this.buildTrxTransfer({
                 network,
                 fromAddress: address,
                 toAddress: this.tronZapAddress,
                 amount: totalAmount,
             });
+            console.log("Process 8. Energy rental transaction object: ", res);
             if (!res.unsignedTx) throw new Error("Failed to build energy rental transaction");
-            return { success: true, data: res, message: 'Energy rental submitted. Confirmation usually takes 20-60 seconds.' };
+            return { unsignedTx: res.unsignedTx, message: 'Energy rental submitted. Confirmation usually takes 20-60 seconds.' };
         } catch (error) {
             throw error;
         }
@@ -503,15 +504,10 @@ class TronService {
             const sunAmount = Number(tronWeb.toSun(amount));
             const unsignedTx = await rateLimiter.executeWithQueue(
                 async () => await tronWeb.transactionBuilder.sendTrx(
-                    toAddress, sunAmount, fromAddress
+                    toAddress, sunAmount, fromAddress,
                 )
             );
-            // const signedtxn = await signer.sign(unsignedTx);
-            // const receipt = await rateLimiter.executeWithQueue(
-            //     async () => await tronWeb.trx.sendRawTransaction(signedtxn)
-            // );
 
-            // return receipt;
             return { unsignedTx };
         } catch (error) {
             throw error;
@@ -542,7 +538,7 @@ class TronService {
                         network,
                         fromAddress,
                         toAddress,
-                        amount
+                        amount,
                     });
                     if (!res.unsignedTx) {
                         throw new Error("Failed to build TRX transfer transaction");
@@ -591,7 +587,10 @@ class TronService {
                     async () => await tronWeb.transactionBuilder.triggerSmartContract(
                         contractAddress,
                         'transfer(address,uint256)',
-                        { feeLimit: 50_000_000, callValue: 0 },
+                        {
+                            feeLimit: 50_000_000,
+                            callValue: 0,
+                        },
                         [
                             { type: 'address', value: toAddress },
                             { type: 'uint256', value: tokenAmount }
@@ -628,9 +627,11 @@ class TronService {
                 async () => await tronWeb.contract().at(this.ADDRESS_MAP[token][network])
             );
 
+            console.info(`Process 1. Checking allowance for ${token} from ${fromAddress} to ${spenderAddress} on ${network}...`);
             const allowance = await rateLimiter.executeWithQueue(
                 async () => await contract.allowance(fromAddress, spenderAddress).call({ from: fromAddress })
             );
+            console.info(`Process 2. Allowance result: ${allowance}`);
 
             const allowanceStr = tronWeb.toBigNumber(allowance).toFixed(0); // Return as string to avoid precision loss
             return { allowanceStr };
@@ -655,6 +656,8 @@ class TronService {
 
             const tokenAddress = this.ADDRESS_MAP[token][network];
             const spenderAddr = this.ADDRESS_MAP["BATCH_SENDER_CONTRACT"][network];
+
+            console.info(`Process 3. Building approvement transaction for ${token} from ${fromAddress} to ${spenderAddr} on ${network} with amount ${amount}...`);
             const txObject = await rateLimiter.executeWithQueue(
                 async () => await tronWeb.transactionBuilder.triggerSmartContract(
                     tokenAddress,
@@ -667,6 +670,7 @@ class TronService {
                     fromAddress
                 )
             );
+            console.info(`Process 4. Approvement transaction object:`, txObject);
 
             if (txObject.result?.result !== true) {
                 throw new Error(txObject.result?.message || "Failed to build transfer approvement");
@@ -710,6 +714,14 @@ class TronService {
 
             if (simulateOnly) {
                 // 3A. Simulate batch transfer
+                console.info("Process 5. Simulating batch transfer with parameters: ", {
+                    network,
+                    fromAddress,
+                    tokenAddr,
+                    batchAddr,
+                    toAddresses,
+                    tokenAmountStr
+                });
                 const simulation = await this.simulateTransfer({
                     tronWeb,
                     network,
@@ -719,6 +731,7 @@ class TronService {
                     tokenAmountStr,
                     batchMode: true
                 });
+                console.log("Process 6. Batch transfer simulation result: ", simulation);
                 if (!simulation.result?.result) {
                     throw new Error(simulation.result?.message || "Batch transfer simulation failed");
                 } else if (simulation.energy_used === undefined) {
@@ -728,6 +741,14 @@ class TronService {
                 return { energy_used };
             } else {
                 // 3B. Execute batch transfer
+                console.info("Process 9. Building batch transfer transaction with parameters: ", {
+                    network,
+                    fromAddress,
+                    tokenAddr,
+                    batchAddr,
+                    toAddresses,
+                    tokenAmountStr
+                });
                 const txObject = await tronWeb.transactionBuilder.triggerSmartContract(
                     batchAddr,
                     'multisendToken(address,address[],uint256[])',
@@ -739,6 +760,7 @@ class TronService {
                     ],
                     fromAddress
                 );
+                console.info("Process 10. Batch transfer transaction object: ", txObject);
                 if (txObject.result?.result !== true) {
                     throw new Error(txObject.result?.message || "Failed to build batch transfer transaction");
                 }

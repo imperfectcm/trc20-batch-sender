@@ -2,7 +2,7 @@
 
 import { useOperationStore, useSenderStore } from "@/utils/store";
 import { Button } from "../ui/button";
-import { Download, ReplaceAll, SendHorizontal } from "lucide-react";
+import { CheckCheck, Download, ReplaceAll, SendHorizontal, X } from "lucide-react";
 import CSVDropzone from "../utils/DropZone";
 import { toast } from "sonner";
 import { BatchTableContainer } from "./BatchTableContainer";
@@ -20,6 +20,7 @@ import { useReqDebounce } from "@/hooks/useReqDebounce";
 import { Spinner } from "../ui/spinner";
 import { TransferStatusContainer } from "./TransferStatusContainer";
 import { useEffect } from "react";
+import { Label } from "@radix-ui/react-label";
 
 export const BatchTransferContainer = () => {
     const network = useSenderStore(state => state.network);
@@ -29,13 +30,18 @@ export const BatchTransferContainer = () => {
 
     const validateAddress = useOperationStore(state => state.validateAddress);
     const energyRental = useOperationStore(state => state.energyRental);
-    const transfers = useOperationStore(state => state.batchTransfers);
+    const setEnergyRental = useOperationStore(state => state.setEnergyRental);
+
     const setBatchTransfers = useOperationStore(state => state.setBatchTransfers);
     const updateBatchTransfers = useOperationStore(state => state.updateBatchTransfers);
+    const transfers = useOperationStore(state => state.batchTransfers);
+
+    const approveTransfer = useOperationStore(state => state.approveBatchTransfer);
     const simulateTransfer = useOperationStore(state => state.simulateBatchTransfer);
     const transferFlow = useOperationStore((state) => state.batchTransferFlow);
     const resumeBatchTransferMonitoring = useOperationStore((state) => state.resumeBatchTransferMonitoring);
 
+    const clearProcessStage = useOperationStore(state => state.clearProcessStage);
     const clearTransfers = useOperationStore(state => state.clearBatchTransfers);
     const isLoading = useOperationStore((state) => state.isLoading);
 
@@ -91,6 +97,7 @@ export const BatchTransferContainer = () => {
             const validData = parsedData.filter((item): item is { toAddress: string; amount: number; warning?: string } => item !== null);
             const hasWarnings = validData.some(item => item.warning);
 
+            clearProcessStage("batch");
             setBatchTransfers({
                 fromAddress,
                 privateKey,
@@ -100,6 +107,7 @@ export const BatchTransferContainer = () => {
                 error: undefined,
                 data: validData
             });
+
         } catch (error) {
             toast.error("Error parsing CSV data. Please check the file format.");
             updateBatchTransfers({ status: "failed", error: "Failed to parsing CSV data" });
@@ -107,9 +115,18 @@ export const BatchTransferContainer = () => {
         }
     }
 
-    const debouncedSimulate = useReqDebounce("simulateBatchTransfer", simulateTransfer);
+    const handleTriggleEnergyRental = () => {
+        setEnergyRental({ ...energyRental, enable: !energyRental.enable });
+    }
+
+    const previewTransfer = async () => {
+        const approved = await approveTransfer();
+        if (!approved) return;
+        await simulateTransfer();
+    };
+    const debouncedPreview = useReqDebounce("previewBatchTransfer", previewTransfer);
     const handlePreview = async () => {
-        await debouncedSimulate();
+        await debouncedPreview();
     };
 
     useEffect(() => {
@@ -129,7 +146,7 @@ export const BatchTransferContainer = () => {
     }
 
     return (
-        <section className="w-full flex flex-col gap-y-4">
+        <section className="relative w-full flex flex-col gap-y-4">
             {transfers.data?.length === 0
                 ?
                 <div className="w-full flex justify-between items-center text-sm text-stone-400">
@@ -144,7 +161,10 @@ export const BatchTransferContainer = () => {
                 </div>
                 :
                 <div className="w-full flex justify-between items-center text-sm text-stone-400">
-                    Batch transfer list: {transfers.data?.length} transactions.
+                    <p>
+                        Batch transfer list: {transfers.data?.length} transactions.
+                    </p>
+
                 </div>
             }
             {transfers.data?.length === 0 && (
@@ -153,70 +173,87 @@ export const BatchTransferContainer = () => {
             {transfers.data && transfers.data.length > 0 && (
                 <>
                     <BatchTableContainer />
-                    <div className="w-full flex justify-end gap-x-2">
-                        <Button variant="outline" className="h-auto p-2 text-stone-400 hover:text-tangerine" onClick={clearTransfers}
-                            disabled={disable}>
-                            <ReplaceAll /> Clear List
-                        </Button>
-                        <Dialog>
-                            <DialogTrigger asChild>
-                                <Button className="hover:bg-tangerine/80 bg-tangerine/60 text-stone-50 flex items-center gap-x-1"
-                                    disabled={disable} onClick={handlePreview}>
-                                    <span>Preview</span><SendHorizontal />
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent className="border-tangerine/60 max-sm:w-screen max-sm:text-sm">
-                                <DialogHeader>
-                                    <DialogTitle>Batch TRC20 Transfers</DialogTitle>
-                                    <DialogDescription>
-                                        Check all the information before confirming the transfers.
-                                    </DialogDescription>
-                                </DialogHeader>
-                                <div className="w-full flex flex-col gap-y-4 mt-4">
-                                    <div className="flex justify-between max-sm:flex-col">
-                                        <span className="font-mono">Network:</span>
-                                        <span className="capitalize">{network}</span>
+                    <div className="pt-4 border-t border-tangerine/60 w-full flex justify-between gap-x-2">
+
+                        <div className="flex items-center gap-x-2">
+                            <p className="text-stone-400 text-sm">Auto Rent Energy</p>
+                            <Button className={`${energyRental.enable && "hover:bg-tangerine/80 bg-tangerine/60 text-stone-50"} w-30`}
+                                variant="outline" onClick={handleTriggleEnergyRental} disabled={disable}>
+                                <span className="flex items-center gap-x-1">
+                                    {energyRental.enable
+                                        ? <>Enabled<CheckCheck /></>
+                                        : <>Disabled<X /></>
+                                    }
+                                </span>
+                            </Button>
+                        </div>
+
+                        <div className="flex justify-between gap-x-2">
+                            <Button variant="outline" className="h-auto p-2 text-stone-400 hover:text-tangerine" onClick={clearTransfers}
+                                disabled={disable}>
+                                <ReplaceAll /> Clear List
+                            </Button>
+                            <Dialog>
+                                <DialogTrigger asChild>
+                                    <Button className="hover:bg-tangerine/80 bg-tangerine/60 text-stone-50 flex items-center gap-x-1"
+                                        disabled={disable} onClick={handlePreview}>
+                                        <span>Preview</span><SendHorizontal />
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="border-tangerine/60 max-sm:w-screen max-sm:text-sm">
+                                    <DialogHeader>
+                                        <DialogTitle>Batch TRC20 Transfers</DialogTitle>
+                                        <DialogDescription>
+                                            Check all the information before confirming the transfers.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="w-full flex flex-col gap-y-4 mt-4">
+                                        <div className="flex justify-between max-sm:flex-col">
+                                            <span className="font-mono">Network:</span>
+                                            <span className="capitalize">{network}</span>
+                                        </div>
+                                        <div className="flex justify-between max-sm:flex-col">
+                                            <span className="font-mono">Token:</span>
+                                            <span>{transfers.token}</span>
+                                        </div>
+                                        <div className="flex justify-between max-sm:flex-col">
+                                            <span className="font-mono">Total Amount:</span>
+                                            <span>{transfers.data?.reduce((acc, item) => acc + item.amount, 0) || <p className="text-red-600">N/A</p>}</span>
+                                        </div>
+                                        <div className="flex justify-between max-sm:flex-col">
+                                            <span className="font-mono">Energy Required:</span>
+                                            {isLoading
+                                                ? <span><Spinner /></span>
+                                                : <span>{energyRental.targetTier ?? <p className="text-red-600">N/A</p>}</span>
+                                            }
+                                        </div>
+                                        <div className="flex justify-between max-sm:flex-col">
+                                            <span className="font-mono">Auto Rent Energy:</span>
+                                            <span>{energyRental.enable ? "Enabled" : "Disabled"}</span>
+                                        </div>
                                     </div>
-                                    <div className="flex justify-between max-sm:flex-col">
-                                        <span className="font-mono">Token:</span>
-                                        <span>{transfers.token}</span>
-                                    </div>
-                                    <div className="flex justify-between max-sm:flex-col">
-                                        <span className="font-mono">Total Amount:</span>
-                                        <span>{transfers.data?.reduce((acc, item) => acc + item.amount, 0) || <p className="text-red-600">N/A</p>}</span>
-                                    </div>
-                                    <div className="flex justify-between max-sm:flex-col">
-                                        <span className="font-mono">Energy Required:</span>
-                                        {isLoading
-                                            ? <span><Spinner /></span>
-                                            : <span>{energyRental.targetTier ?? <p className="text-red-600">N/A</p>}</span>
-                                        }
-                                    </div>
-                                    <div className="flex justify-between max-sm:flex-col">
-                                        <span className="font-mono">Auto Rent Energy:</span>
-                                        <span>{energyRental.enable ? "Enabled" : "Disabled"}</span>
-                                    </div>
-                                </div>
-                                <DialogFooter className="mt-4">
-                                    <div className="flex w-full gap-x-2">
-                                        <DialogClose asChild>
-                                            <Button variant="outline" className="w-0 grow text-stone-400 hover:text-tangerine">Close</Button>
-                                        </DialogClose>
-                                        <DialogClose asChild>
-                                            <Button className="hover:bg-tangerine/80 bg-tangerine/60 text-stone-50 w-0 grow"
-                                                onClick={transferFlow} disabled={disable}>
-                                                Send
-                                            </Button>
-                                        </DialogClose>
-                                    </div>
-                                </DialogFooter>
-                            </DialogContent>
-                        </Dialog>
+                                    <DialogFooter className="mt-4">
+                                        <div className="flex w-full gap-x-2">
+                                            <DialogClose asChild>
+                                                <Button variant="outline" className="w-0 grow text-stone-400 hover:text-tangerine">Close</Button>
+                                            </DialogClose>
+                                            <DialogClose asChild>
+                                                <Button className="hover:bg-tangerine/80 bg-tangerine/60 text-stone-50 w-0 grow"
+                                                    onClick={transferFlow} disabled={disable}>
+                                                    Send
+                                                </Button>
+                                            </DialogClose>
+                                        </div>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
+                        </div>
                     </div>
 
                     <TransferStatusContainer transferType="batch" />
                 </>
-            )}
-        </section>
+            )
+            }
+        </section >
     )
 };

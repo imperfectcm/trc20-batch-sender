@@ -264,6 +264,17 @@ export const TransferStatusContainer = ({ transferType = "single" }: TransferSta
                     </>
                 )}
 
+                {processStage.batch === "approving" && (
+                    <>
+                        <section className="rounded-lg p-2 bg-yellow-500">
+                            <div className="flex">
+                                <p className="font-mono animate-pulse">Approving Allowance...</p>
+                            </div>
+                        </section>
+                        <BatchTransferInfoContainer batchTransfers={batchTransfers} ringColor="ring-yellow-500" txidColor="text-yellow-500" />
+                    </>
+                )}
+
                 {processStage.batch === "renting-energy" && !energyRental.txid && (
                     <section className="transfer-status-container ring-1 ring-amber-500">
                         <p className="animate-pulse">

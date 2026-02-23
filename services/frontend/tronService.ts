@@ -1,6 +1,6 @@
 // frontend/services/tronFrontendService.ts
 
-import { API_ENDPOINTS, Network } from "@/models/network";
+import { API_ENDPOINTS, MAX_UINT256, Network } from "@/models/network";
 import { api } from "@/utils/api";
 import { SignedTransaction, Transaction } from "@tronweb3/tronwallet-abstract-adapter";
 import { TronLinkAdapter } from "@tronweb3/tronwallet-adapters";
@@ -14,6 +14,7 @@ class TronFrontendService {
     private timeslot: number = 5000; // 5 seconds
 
     private static API_ENDPOINTS = API_ENDPOINTS;
+    private static MAX_UINT256 = MAX_UINT256;
 
     constructor(mode: 'adapter' | 'privateKey', config: { network: Network, privateKey?: string }) {
         this.tronWeb = new TronWeb({
@@ -93,15 +94,12 @@ class TronFrontendService {
         energyReq: number,
     }): Promise<{ txid: string, skip: boolean }> {
         // 1. Build energy rental unsigned transaction in backend
-        const result = await api<{ success: boolean, data?: { unsignedTx: Transaction }, message?: string, skip?: boolean }>('/api/energy/rental', { ...payload });
-        if (!result.success || !result.data) {
-            throw new Error(result.message || "Energy rental failed");
-        }
-        const skip = result.skip || false;
+        const result = await api<{ unsignedTx: Transaction, skip?: boolean }>('/api/energy/rental', { ...payload });
+        const { unsignedTx, skip = false } = result || {};
+        console.log("Unsigned Tx: ", unsignedTx, " Skip: ", skip);
         if (skip) {
             return { txid: "", skip }; // Indicate that rental was skipped (e.g., already has enough energy)
         }
-        const unsignedTx = result.data.unsignedTx;
 
         // 2. Sign transaction
         const signedTx = await this.sign(unsignedTx);
@@ -134,12 +132,12 @@ class TronFrontendService {
         return { txid };
     }
 
-    async approveBatchTransfer(payload: {
+    async checkAllowance(payload: {
         network: Network,
         token: string,
-        recipients: { toAddress: string, amount: number }[]
-    }): Promise<{ sufficient: boolean, txid?: string, totalAmount: string }> { // Return txid if approval is needed
-        const { network, token, recipients } = payload;
+        recipients: { toAddress: string, amount: number }[],
+    }): Promise<{ sufficient: boolean, totalAmount: string }> { // Return totalAmount for approval if allowance is insufficient
+        const { network, token, recipients, } = payload;
         const fromAddress = this.getAddress();
 
         // 1. Check allowance
@@ -163,17 +161,29 @@ class TronFrontendService {
 
         // 3. If allowance is insufficient, approve first
         if (this.tronWeb.toBigNumber(allowance).lt(totalAmount)) {
-            const { unsignedTx } = await api<{ unsignedTx: Transaction }>(
-                '/api/transfer/approvement',
-                { network, fromAddress, token, amount: totalAmountStr }
-            )
-
-            const signedTx = await this.sign(unsignedTx);
-            const { txid } = await this.broadcast(signedTx);
-
-            return { sufficient: false, txid, totalAmount: totalAmountStr };
+            return { sufficient: false, totalAmount: totalAmountStr };
         }
         return { sufficient: true, totalAmount: totalAmountStr };
+    }
+
+    async approveBatchTransfer(payload: {
+        network: Network,
+        token: string,
+        totalAmount: string,
+        hasPrivateKey: boolean
+    }): Promise<{ txid: string, }> { // Return txid
+        const { network, token, totalAmount, hasPrivateKey } = payload;
+        const fromAddress = this.getAddress();
+
+        const { unsignedTx } = await api<{ unsignedTx: Transaction }>(
+            '/api/transfer/approvement',
+            { network, fromAddress, token, amount: hasPrivateKey ? MAX_UINT256 : totalAmount }
+        )
+
+        const signedTx = await this.sign(unsignedTx);
+        const { txid } = await this.broadcast(signedTx);
+        return { txid };
+
     }
 
     // Batch transfer (complete process)
