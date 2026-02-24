@@ -17,7 +17,7 @@ export const RENTAL_PACKAGES = [
     { energy: 65000, price: 3.00, id: 'standard' }
 ] as const;
 
-export type ProcessStage = '' | 'idle' | 'approving' | 'estimating-energy' | 'renting-energy' | 'broadcasting' | 'confirming' | 'confirmed' | 'failed' | 'timeout' | 'energy-timeout';
+export type ProcessStage = '' | 'idle' | 'approving' | 'estimating-energy' | 'renting-energy' | 'broadcasting' | 'confirming' | 'confirmed' | 'failed' | 'timeout' | 'approving-timeout' | 'energy-timeout';
 
 export type TransferReq = {
     network: string;

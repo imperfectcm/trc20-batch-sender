@@ -19,7 +19,6 @@ import {
 import { useReqDebounce } from "@/hooks/useReqDebounce";
 import { Spinner } from "../ui/spinner";
 import { TransferStatusContainer } from "./TransferStatusContainer";
-import { useEffect } from "react";
 
 export const BatchTransferContainer = () => {
     const network = useSenderStore(state => state.network);
@@ -40,7 +39,6 @@ export const BatchTransferContainer = () => {
     const approveTransfer = useOperationStore(state => state.approveBatchTransfer);
     const simulateTransfer = useOperationStore(state => state.simulateBatchTransfer);
     const transferFlow = useOperationStore((state) => state.batchTransferFlow);
-    // const resumeMonitoring = useOperationStore((state) => state.resumeBatchTransferMonitoring);
 
     const clearProcessStage = useOperationStore(state => state.clearProcessStage);
     const clearTransfers = useOperationStore(state => state.clearBatchTransfers);
@@ -130,12 +128,6 @@ export const BatchTransferContainer = () => {
     const handlePreview = async () => {
         await debouncedPreview();
     };
-
-    // useEffect(() => {
-    //     if (privateKeyActivated) {
-    //         resumeMonitoring();
-    //     };
-    // }, [privateKeyActivated, resumeMonitoring]);
 
     if (!privateKeyActivated) {
         return (

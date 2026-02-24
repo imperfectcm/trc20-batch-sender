@@ -27,7 +27,6 @@ import { CheckCheck, SendHorizontal, X } from "lucide-react";
 import { TransferStatusContainer } from "./TransferStatusContainer";
 import { Spinner } from "../ui/spinner";
 import { useReqDebounce } from "@/hooks/useReqDebounce";
-import { useEffect } from "react";
 
 export const SingleTransferContainer = () => {
     const network = useSenderStore(state => state.network);
@@ -39,7 +38,6 @@ export const SingleTransferContainer = () => {
     const updateTransfer = useOperationStore(state => state.updateSingleTransfer);
     const simulateTransfer = useOperationStore(state => state.simulateSingleTransfer);
     const transferFlow = useOperationStore((state) => state.singleTransferFlow);
-    // const resumeTransferMonitoring = useOperationStore((state) => state.resumeTransferMonitoring);
     const isTransferActive = useOperationStore(state => state.isTransferActive);
     const isLoading = useOperationStore((state) => state.isLoading);
 
@@ -69,12 +67,6 @@ export const SingleTransferContainer = () => {
     const handlePreview = async () => {
         await debouncedSimulate();
     };
-
-    // useEffect(() => {
-    //     if (privateKeyActivated) {
-    //         resumeTransferMonitoring();
-    //     };
-    // }, [privateKeyActivated, resumeTransferMonitoring]);
 
     if (!privateKeyActivated) {
         return (

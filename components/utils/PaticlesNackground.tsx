@@ -65,7 +65,7 @@ export const Particles: React.FC<ParticlesProps> = ({
     className,
     children,
     quantity = 250,
-    staticity = 50,
+    staticity = 25,
     ease = 50,
     size = 0.4,
     refresh = false,

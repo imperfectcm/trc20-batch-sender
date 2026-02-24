@@ -319,7 +319,7 @@ export const TransferStatusContainer = ({ transferType = "single" }: TransferSta
                     </>
                 )}
 
-                {(["energy-timeout", "timeout"].includes(processStage.batch)) && (
+                {(["approving-timeout", "energy-timeout", "timeout"].includes(processStage.batch)) && (
                     <>
                         <section className="relative w-full flex justify-between items-center rounded-lg p-2 bg-stone-600">
                             <p className="font-mono text-stone-200">

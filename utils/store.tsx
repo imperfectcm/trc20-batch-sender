@@ -344,7 +344,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
             },
 
             singleTransferFlow: async () => {
-                const { updateProcess, singlePreCheck, updateSingleTransfer, energyRental } = get();
+                const { updateProcess, singlePreCheck, updateSingleTransfer, energyRental, setEnergyRental } = get();
                 const sender = useSenderStore.getState();
 
                 // 1. Pre-check
@@ -369,6 +369,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                             energyReq: energyRental.targetTier,
                         });
 
+                        setEnergyRental({ txid: rental.txid, isMonitoring: !rental.skip });
                         if (!rental.skip) {
                             const success = await pollEnergy({ requiredEnergy: energyRental.targetTier });
                             if (!success) {
@@ -502,7 +503,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                     updateBatchTransfers({ txid: approval.txid });
                     const txConfirmed = await tron.pollTx(approval.txid);
                     if (!txConfirmed) {
-                        updateProcess({ batch: 'timeout' });
+                        updateProcess({ batch: 'approving-timeout' });
                         toast.warning("Transaction confirmation timed out");
                         return false;
                     }
@@ -566,7 +567,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                 }
             },
             batchTransferFlow: async () => {
-                const { updateProcess, batchPreCheck, updateBatchTransfers, energyRental } = get();
+                const { updateProcess, batchPreCheck, updateBatchTransfers, energyRental, setEnergyRental } = get();
                 const sender = useSenderStore.getState();
 
                 // 1. Pre-check
@@ -591,6 +592,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                             energyReq: energyRental.targetTier,
                         });
 
+                        setEnergyRental({ txid: rental.txid, isMonitoring: !rental.skip });
                         if (!rental.skip) {
                             const success = await pollEnergy({ requiredEnergy: energyRental.targetTier });
                             if (!success) {
@@ -721,7 +723,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                 }
 
                 // 2. Determine conditions
-                const canResumeApprovalMonitoring = processStage.batch === "approving" && !!batchTransfers.txid;
+                const canResumeApprovalMonitoring = ["approving", "approving-timeout"].includes(processStage.batch) && !!batchTransfers.txid;
                 const canResumeEnergyMonitoring = ["renting-energy", "energy-timeout"].includes(processStage.batch);
                 const canResumeTransferMonitoring = ["confirming", "timeout"].includes(processStage.batch) && !!batchTransfers.txid;
 
