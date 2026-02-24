@@ -22,13 +22,13 @@ class TronService {
         if (!TronService.publicInstance) {
             TronService.publicInstance = new TronWeb({
                 fullHost: TronService.API_ENDPOINTS.mainnet,
-                headers: { "TRON-PRO-API-KEY": process.env.TRONWEB_API_KEY },
+                headers: { "TRON-PRO-API-KEY": process.env.TRONGRID_API_KEY },
             });
         }
         if (!TronService.publicShastaInstance) {
             TronService.publicShastaInstance = new TronWeb({
                 fullHost: TronService.API_ENDPOINTS.shasta,
-                headers: { "TRON-PRO-API-KEY": process.env.TRONWEB_API_KEY },
+                headers: { "TRON-PRO-API-KEY": process.env.TRONGRID_API_KEY },
             });
         }
     }

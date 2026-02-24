@@ -17,7 +17,7 @@ class PrivateKeySigner implements ISigner {
             fullHost: network === 'mainnet'
                 ? 'https://api.trongrid.io'
                 : 'https://api.shasta.trongrid.io',
-            headers: { "TRON-PRO-API-KEY": process.env.TRONWEB_API_KEY },
+            headers: { "TRON-PRO-API-KEY": process.env.TRONGRID_API_KEY },
             privateKey
         });
         this.address = this.tronWeb.defaultAddress.base58.toString();
@@ -46,7 +46,7 @@ class AdapterSigner implements ISigner {
             fullHost: network === 'mainnet'
                 ? 'https://api.trongrid.io'
                 : 'https://api.shasta.trongrid.io',
-            headers: { "TRON-PRO-API-KEY": process.env.TRONWEB_API_KEY }
+            headers: { "TRON-PRO-API-KEY": process.env.TRONGRID_API_KEY }
         });
     }
 
