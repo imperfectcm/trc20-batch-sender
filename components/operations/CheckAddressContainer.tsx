@@ -38,7 +38,7 @@ export const CheckAddressContainer = () => {
                 Check the validity of a TRON address.
             </p>
             <div className="flex gap-x-2">
-                <Input value={address} onChange={(e) => setAddress(e.target.value)} onKeyDown={handleKeyDown} />
+                <Input value={address} onChange={(e) => setAddress(e.target.value)} onKeyDown={handleKeyDown} disabled={isLoading} />
                 <Button variant="outline" className="h-auto p-2 text-stone-400 hover:text-tangerine" onClick={handleClick} disabled={isLoading}>Check</Button>
             </div>
         </section>

@@ -4,7 +4,7 @@ import { TronLinkAdapter, TronLinkAdapterName } from '@tronweb3/tronwallet-adapt
 import { useWallet, WalletProvider } from '@tronweb3/tronwallet-adapter-react-hooks';
 import { Button } from '../ui/button';
 import { useEffect, useMemo, useState } from 'react';
-import { useSenderStore } from '@/utils/store';
+import { useOperationStore, useSenderStore } from '@/utils/store';
 import { toast } from 'sonner';
 import { WalletReadyState } from '@tronweb3/tronwallet-abstract-adapter';
 import { Unplug } from 'lucide-react';
@@ -13,6 +13,10 @@ const WalletButtons = ({ readyState }: { readyState: WalletReadyState }) => {
     const addressActivated = useSenderStore((state) => state.active.address);
     const connectAdapter = useSenderStore(state => state.connectAdapter);
     const disconnectAdapter = useSenderStore(state => state.disconnectAdapter);
+
+    const operationLoading = useOperationStore((state) => state.isLoading);
+    const isTransferActive = useOperationStore((state) => state.isTransferActive);
+    const disabled = operationLoading || isTransferActive("single") || isTransferActive("batch");
 
     const { wallet, connect, disconnect, select, connected, wallets } = useWallet();
     function onSelect() {
@@ -63,12 +67,16 @@ const WalletButtons = ({ readyState }: { readyState: WalletReadyState }) => {
             {!connected
                 ?
                 <Button variant="outline" className='h-auto p-2 text-stone-400 hover:text-tangerine'
-                    onClick={onConnect}>
+                    onClick={onConnect}
+                    disabled={disabled}
+                >
                     Connect {wallet?.adapter.name || 'Wallet'}
                 </Button>
                 :
                 <Button variant="outline" className='h-auto p-2 text-stone-400 hover:text-tangerine'
-                    onClick={onDisconnect}>
+                    onClick={onDisconnect}
+                    disabled={disabled}
+                >
                     <Unplug /> Disconnect
                 </Button>
             }

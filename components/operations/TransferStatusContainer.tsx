@@ -5,7 +5,6 @@ import { HueLoader } from "../utils/HueLoader";
 import { BatchTransferData, TransferItem } from "@/models/transfer";
 import { CopyButton } from "../ui/copy-button";
 import { Button } from "../ui/button";
-import { useEffect } from "react";
 import { useReqDebounce } from "@/hooks/useReqDebounce";
 import { RefreshCw } from "lucide-react";
 
@@ -14,10 +13,11 @@ interface TransferStatusContainerProps {
 }
 
 const TransferInfoContainer = ({ transferData, ringColor, txidColor }: { transferData: Partial<TransferItem>, ringColor?: string, txidColor?: string }) => {
+    const isTransferPending = useOperationStore((state) => state.isTransferPending("single"));
     return (
         <section className={`relative transfer-status-container text-stone-300 ring-1 ${ringColor}`}>
             <div className="w-full flex flex-col gap-y-1">
-                <div className={`w-full flex gap-2 ${transferData.status === "pending" && "animate-pulse"}`}>
+                <div className={`w-full flex gap-2 ${isTransferPending && "animate-pulse"}`}>
                     <div className="flex flex-col basis-1/4">
                         <p className="text-xs text-stone-400">Network</p>
                         <p>{transferData.network}</p>
@@ -48,10 +48,11 @@ const TransferInfoContainer = ({ transferData, ringColor, txidColor }: { transfe
 }
 
 const BatchTransferInfoContainer = ({ batchTransfers, ringColor, txidColor }: { batchTransfers: Partial<BatchTransferData>, ringColor?: string, txidColor?: string }) => {
+    const isTransferPending = useOperationStore((state) => state.isTransferPending("batch"));
     return (
         <section className={`relative transfer-status-container text-stone-300 ring-1 ${ringColor}`}>
             <div className="w-full flex flex-col gap-y-1">
-                <div className={`w-full flex flex-col gap-2 ${batchTransfers.status === "pending" && "animate-pulse"}`}>
+                <div className={`w-full flex flex-col gap-2 ${isTransferPending && "animate-pulse"}`}>
                     <div className="flex flex-col">
                         <p className="text-xs text-stone-400">Network</p>
                         <p>{batchTransfers.network || "-"}</p>
@@ -86,7 +87,7 @@ const BatchTransferInfoContainer = ({ batchTransfers, ringColor, txidColor }: { 
 }
 
 export const TransferStatusContainer = ({ transferType = "single" }: TransferStatusContainerProps) => {
-    const addressActivated = useSenderStore(state => state.active.address);
+    const privateKeyActivated = useSenderStore(state => state.active.privateKey);
 
     const transferData = useOperationStore(state => state.singleTransferData);
     const batchTransfers = useOperationStore(state => state.batchTransfers);
@@ -99,9 +100,8 @@ export const TransferStatusContainer = ({ transferType = "single" }: TransferSta
     const clearProcessStage = useOperationStore(state => state.clearProcessStage);
     const clearEnergyRental = useOperationStore(state => state.clearEnergyRental);
 
-    const isSingleTransfering = useOperationStore((state) => state.isSingleTransfering());
-    const isBatchTransfering = useOperationStore((state) => state.isBatchTransfering());
-
+    const isTransferActive = useOperationStore((state) => state.isTransferActive);
+    const isTransferPending = useOperationStore((state) => state.isTransferPending);
     const resumeTransferMonitoring = useOperationStore((state) => state.resumeTransferMonitoring);
     const resumeBatchTransferMonitoring = useOperationStore((state) => state.resumeBatchTransferMonitoring);
 
@@ -129,11 +129,11 @@ export const TransferStatusContainer = ({ transferType = "single" }: TransferSta
         clearEnergyRental();
     }
 
-    if (!addressActivated) {
+    if (!privateKeyActivated) {
         return null
     };
 
-    if (transferType === "single" && !isBatchTransfering && !!transferData.toAddress && processStage.single !== "") {
+    if (transferType === "single" && !isTransferPending("batch") && !!transferData.toAddress && processStage.single !== "") {
         return (
             <article className="relative min-h-60 max-h-[80dvh] w-full flex flex-col gap-y-2 bg-orange-100/10 p-2 rounded-lg">
                 {processStage.single === "idle" && (
@@ -191,7 +191,7 @@ export const TransferStatusContainer = ({ transferType = "single" }: TransferSta
                     </>
                 )}
 
-                {(processStage.single === "energy-timeout" || processStage.single === "timeout") && (
+                {["energy-timeout", "timeout"].includes(processStage.single) && (
                     <>
                         <section className="relative w-full flex justify-between items-center rounded-lg p-2 bg-stone-600">
                             <p className="font-mono text-stone-200">
@@ -233,7 +233,7 @@ export const TransferStatusContainer = ({ transferType = "single" }: TransferSta
                 {["timeout", "confirmed", "failed"].includes(processStage.single) &&
                     <aside className="w-full text-center mt-4">
                         <Button variant="outline"
-                            disabled={isLoading || transferData.status === "pending"}
+                            disabled={isLoading || isTransferActive("single")}
                             className="bg-transparent text-stone-400 hover:text-tangerine"
                             onClick={handleClearSingleTransfer}>
                             Clear Result
@@ -250,7 +250,7 @@ export const TransferStatusContainer = ({ transferType = "single" }: TransferSta
         );
     }
 
-    if (transferType === "batch" && !isSingleTransfering && batchTransfers.data && batchTransfers.data.length > 0 && processStage.batch !== "") {
+    if (transferType === "batch" && !isTransferPending("single") && batchTransfers.data && batchTransfers.data.length > 0 && processStage.batch !== "") {
         return (
             <article className="relative min-h-60 max-h-[80dvh] w-full flex flex-col gap-y-2 bg-orange-100/10 p-2 rounded-lg">
                 {processStage.batch === "idle" && (
@@ -319,7 +319,7 @@ export const TransferStatusContainer = ({ transferType = "single" }: TransferSta
                     </>
                 )}
 
-                {(processStage.batch === "energy-timeout" || processStage.batch === "timeout") && (
+                {(["energy-timeout", "timeout"].includes(processStage.batch)) && (
                     <>
                         <section className="relative w-full flex justify-between items-center rounded-lg p-2 bg-stone-600">
                             <p className="font-mono text-stone-200">
@@ -361,7 +361,7 @@ export const TransferStatusContainer = ({ transferType = "single" }: TransferSta
                 {["timeout", "confirmed", "failed"].includes(processStage.batch) &&
                     <aside className="w-full text-center mt-4">
                         <Button variant="outline"
-                            disabled={isLoading || batchTransfers.status === "pending"}
+                            disabled={isLoading || isTransferActive("batch")}
                             className="bg-transparent text-stone-400 hover:text-tangerine"
                             onClick={handleClearBatchTransfers}>
                             Clear Result

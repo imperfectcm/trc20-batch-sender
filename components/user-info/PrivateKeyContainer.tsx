@@ -1,8 +1,8 @@
 "use client";
 
-import { useSenderStore } from "@/utils/store";
+import { useOperationStore, useSenderStore } from "@/utils/store";
 import InputEndInlineButton from "../utils/InputEndInlineButton";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Eye, EyeClosed } from "lucide-react";
 
 export const PrivateKeyContainer = () => {
@@ -11,6 +11,9 @@ export const PrivateKeyContainer = () => {
     const updateActive = useSenderStore((state) => state.updateActive);
     const privateKeyActivated = useSenderStore((state) => state.active.privateKey);
     const isLoading = useSenderStore((state) => state.isLoading);
+
+    const resumeSingleMonitoring = useOperationStore((state) => state.resumeTransferMonitoring);
+    const resumeBatchMonitoring = useOperationStore((state) => state.resumeBatchTransferMonitoring);
 
     const [canView, setCanView] = useState(false);
 
@@ -26,6 +29,13 @@ export const PrivateKeyContainer = () => {
     }
 
     const inputType: "text" | "password" = privateKeyActivated ? "password" : canView ? "text" : "password";
+
+    useEffect(() => {
+        if (privateKeyActivated) {
+            resumeSingleMonitoring();
+            resumeBatchMonitoring();
+        };
+    }, [privateKeyActivated, resumeSingleMonitoring, resumeBatchMonitoring]);
 
     return (
         <section className="relative w-full">

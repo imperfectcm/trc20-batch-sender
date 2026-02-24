@@ -20,17 +20,18 @@ import { useReqDebounce } from "@/hooks/useReqDebounce";
 import { Spinner } from "../ui/spinner";
 import { TransferStatusContainer } from "./TransferStatusContainer";
 import { useEffect } from "react";
-import { Label } from "@radix-ui/react-label";
 
 export const BatchTransferContainer = () => {
     const network = useSenderStore(state => state.network);
     const fromAddress = useSenderStore(state => state.address);
     const privateKey = useSenderStore(state => state.privateKey);
-    const addressActivated = useSenderStore(state => state.active.address);
+    const privateKeyActivated = useSenderStore(state => state.active.privateKey);
 
     const validateAddress = useOperationStore(state => state.validateAddress);
     const energyRental = useOperationStore(state => state.energyRental);
     const setEnergyRental = useOperationStore(state => state.setEnergyRental);
+
+    const updateProcess = useOperationStore(state => state.updateProcess);
 
     const setBatchTransfers = useOperationStore(state => state.setBatchTransfers);
     const updateBatchTransfers = useOperationStore(state => state.updateBatchTransfers);
@@ -39,13 +40,14 @@ export const BatchTransferContainer = () => {
     const approveTransfer = useOperationStore(state => state.approveBatchTransfer);
     const simulateTransfer = useOperationStore(state => state.simulateBatchTransfer);
     const transferFlow = useOperationStore((state) => state.batchTransferFlow);
-    const resumeBatchTransferMonitoring = useOperationStore((state) => state.resumeBatchTransferMonitoring);
+    // const resumeMonitoring = useOperationStore((state) => state.resumeBatchTransferMonitoring);
 
     const clearProcessStage = useOperationStore(state => state.clearProcessStage);
     const clearTransfers = useOperationStore(state => state.clearBatchTransfers);
+    const isTransferActive = useOperationStore(state => state.isTransferActive);
     const isLoading = useOperationStore((state) => state.isLoading);
 
-    const disable = isLoading || transfers.status === "pending";
+    const disabled = isLoading || isTransferActive("single") || isTransferActive("batch");
 
     const MAX_BATCH_SIZE = 100;
     const handleUpload = async (data: { header?: string[]; data: unknown[] }) => {
@@ -95,22 +97,22 @@ export const BatchTransferContainer = () => {
                 })
             const parsedData = await Promise.all(parsingPromises);
             const validData = parsedData.filter((item): item is { toAddress: string; amount: number; warning?: string } => item !== null);
+            if (validData.length > 0) clearProcessStage("batch");
             const hasWarnings = validData.some(item => item.warning);
 
-            clearProcessStage("batch");
             setBatchTransfers({
                 fromAddress,
                 privateKey,
-                status: hasWarnings ? "failed" : "idle",
                 token: "USDT",
                 txid: undefined,
                 error: undefined,
                 data: validData
             });
-
+            updateProcess({ batch: hasWarnings ? "failed" : "idle" });
         } catch (error) {
             toast.error("Error parsing CSV data. Please check the file format.");
-            updateBatchTransfers({ status: "failed", error: "Failed to parsing CSV data" });
+            updateProcess({ batch: "failed" });
+            updateBatchTransfers({ error: "Failed to parsing CSV data" });
             return;
         }
     }
@@ -129,17 +131,17 @@ export const BatchTransferContainer = () => {
         await debouncedPreview();
     };
 
-    useEffect(() => {
-        if (addressActivated) {
-            resumeBatchTransferMonitoring();
-        };
-    }, [addressActivated, resumeBatchTransferMonitoring]);
+    // useEffect(() => {
+    //     if (privateKeyActivated) {
+    //         resumeMonitoring();
+    //     };
+    // }, [privateKeyActivated, resumeMonitoring]);
 
-    if (!addressActivated) {
+    if (!privateKeyActivated) {
         return (
             <div className="w-full flex flex-col gap-y-4">
                 <p className="w-full text-center text-sm text-stone-400" >
-                    Activate the address to use this feature.
+                    Activate the address and private key to use this feature.
                 </p>
             </div>
         )
@@ -164,7 +166,6 @@ export const BatchTransferContainer = () => {
                     <p>
                         Batch transfer list: {transfers.data?.length} transactions.
                     </p>
-
                 </div>
             }
             {transfers.data?.length === 0 && (
@@ -178,7 +179,7 @@ export const BatchTransferContainer = () => {
                         <div className="flex items-center gap-x-2">
                             <p className="text-stone-400 text-sm">Auto Rent Energy</p>
                             <Button className={`${energyRental.enable && "hover:bg-tangerine/80 bg-tangerine/60 text-stone-50"} w-30`}
-                                variant="outline" onClick={handleTriggleEnergyRental} disabled={disable}>
+                                variant="outline" onClick={handleTriggleEnergyRental} disabled={disabled}>
                                 <span className="flex items-center gap-x-1">
                                     {energyRental.enable
                                         ? <>Enabled<CheckCheck /></>
@@ -190,13 +191,13 @@ export const BatchTransferContainer = () => {
 
                         <div className="flex justify-between gap-x-2">
                             <Button variant="outline" className="h-auto p-2 text-stone-400 hover:text-tangerine" onClick={clearTransfers}
-                                disabled={disable}>
+                                disabled={disabled}>
                                 <ReplaceAll /> Clear List
                             </Button>
                             <Dialog>
                                 <DialogTrigger asChild>
                                     <Button className="hover:bg-tangerine/80 bg-tangerine/60 text-stone-50 flex items-center gap-x-1"
-                                        disabled={disable} onClick={handlePreview}>
+                                        disabled={disabled} onClick={handlePreview}>
                                         <span>Preview</span><SendHorizontal />
                                     </Button>
                                 </DialogTrigger>
@@ -239,7 +240,7 @@ export const BatchTransferContainer = () => {
                                             </DialogClose>
                                             <DialogClose asChild>
                                                 <Button className="hover:bg-tangerine/80 bg-tangerine/60 text-stone-50 w-0 grow"
-                                                    onClick={transferFlow} disabled={disable}>
+                                                    onClick={transferFlow} disabled={disabled}>
                                                     Send
                                                 </Button>
                                             </DialogClose>

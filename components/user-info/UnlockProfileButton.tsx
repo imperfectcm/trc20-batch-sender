@@ -10,6 +10,8 @@ export const UnlockProfileButton = () => {
     const disconnectAdapter = useSenderStore((state) => state.disconnectAdapter);
 
     const operationLoading = useOperationStore((state) => state.isLoading);
+    const isTransferActive = useOperationStore((state) => state.isTransferActive);
+    const disabled = operationLoading || isTransferActive("single") || isTransferActive("batch");
 
     const handleUnlockInput = () => {
         if (adapter) adapter.disconnect();
@@ -21,7 +23,7 @@ export const UnlockProfileButton = () => {
             <Button
                 variant="outline"
                 onClick={handleUnlockInput}
-                disabled={!active.address && !active.privateKey || operationLoading}
+                disabled={!active.address && !active.privateKey || disabled}
             >
                 <LockOpen />Unlock Profile
             </Button>

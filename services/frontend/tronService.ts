@@ -1,5 +1,3 @@
-// frontend/services/tronFrontendService.ts
-
 import { API_ENDPOINTS, MAX_UINT256, Network } from "@/models/network";
 import { api } from "@/utils/api";
 import { SignedTransaction, Transaction } from "@tronweb3/tronwallet-abstract-adapter";
@@ -58,7 +56,7 @@ class TronFrontendService {
                 throw new Error("No signing method available");
             }
         } catch (error) {
-            console.error("Error signing transaction:", error);
+            console.error("Failed to signing transaction:", error);
             throw error;
         }
     }
@@ -96,7 +94,6 @@ class TronFrontendService {
         // 1. Build energy rental unsigned transaction in backend
         const result = await api<{ unsignedTx: Transaction, skip?: boolean }>('/api/energy/rental', { ...payload });
         const { unsignedTx, skip = false } = result || {};
-        console.log("Unsigned Tx: ", unsignedTx, " Skip: ", skip);
         if (skip) {
             return { txid: "", skip }; // Indicate that rental was skipped (e.g., already has enough energy)
         }
@@ -170,14 +167,13 @@ class TronFrontendService {
         network: Network,
         token: string,
         totalAmount: string,
-        hasPrivateKey: boolean
     }): Promise<{ txid: string, }> { // Return txid
-        const { network, token, totalAmount, hasPrivateKey } = payload;
+        const { network, token, totalAmount } = payload;
         const fromAddress = this.getAddress();
 
         const { unsignedTx } = await api<{ unsignedTx: Transaction }>(
             '/api/transfer/approvement',
-            { network, fromAddress, token, amount: hasPrivateKey ? MAX_UINT256 : totalAmount }
+            { network, fromAddress, token, amount: this.adapter ? totalAmount : TronFrontendService.MAX_UINT256 }
         )
 
         const signedTx = await this.sign(unsignedTx);

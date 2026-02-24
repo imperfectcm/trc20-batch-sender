@@ -8,15 +8,24 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Network, NETWORK_OPTIONS } from "@/models/network";
-import { useSenderStore } from "@/utils/store";
+import { useOperationStore, useSenderStore } from "@/utils/store";
 import { Label } from "../ui/label";
+import { toast } from "sonner";
 
 export const NetworkContainer = () => {
     const network = useSenderStore((state) => state.network);
     const setNetwork = useSenderStore((state) => state.setNetwork);
     const fetchProfile = useSenderStore((state) => state.fetchProfile);
 
+    const operationLoading = useOperationStore((state) => state.isLoading);
+    const isTransferActive = useOperationStore((state) => state.isTransferActive);
+    const disabled = operationLoading || isTransferActive("single") || isTransferActive("batch");
+
     const handleNetworkChange = (value: string) => {
+        if (disabled) {
+            toast.warning("Cannot change network during transaction process.");
+            return
+        };
         setNetwork(value as Network);
         fetchProfile();
     }

@@ -24,6 +24,9 @@ export const TransferRecordsContainer = () => {
     const clearTransferRecords = useOperationStore(state => state.clearTransferRecords);
     const isLoading = useOperationStore((state) => state.isLoading);
 
+    const isTransferActive = useOperationStore(state => state.isTransferActive);
+
+    const isTansferActive = isTransferActive("single") || isTransferActive("batch");
     const debouncedFetch = useReqDebounce("transferRecords", fetchTransferRecords);
 
     const handleClick = async () => {
@@ -39,7 +42,7 @@ export const TransferRecordsContainer = () => {
                     </p>
                     <div className="flex gap-x-2">
                         <Button variant="outline" className="h-auto p-2 text-stone-400 hover:text-tangerine"
-                            onClick={handleClick} disabled={isLoading || transferRecords.length > 0}>Check Records</Button>
+                            onClick={handleClick} disabled={isLoading || isTansferActive || transferRecords.length > 0}>Check Records</Button>
                     </div>
                 </div>
                 :
@@ -88,7 +91,7 @@ export const TransferRecordsContainer = () => {
                     </aside>
                 </>
             )}
-            {addressActivated && isLoading && (
+            {addressActivated && !isTansferActive && isLoading && (
                 <p className="w-full flex justify-center text-stone-400 py-8" >
                     <Spinner />
                 </p>
