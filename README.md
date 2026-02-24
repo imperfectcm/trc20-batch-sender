@@ -1,36 +1,78 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TRC20 Batch Sender
+
+A web-based tool for performing batch TRC20 USDT transfers on the TRON blockchain. Built with Next.js and TronWeb, it streamlines multi-recipient transfers with automatic energy rental and transaction resume support.
+
+## Features
+
+- **Batch Transfers** — Send USDT to multiple recipients in a single contract call, saving time and reducing overhead
+- **Auto Energy Rental** — Automatically estimates required energy before transfer and rents it on-demand to minimize TRX burn as gas fees
+- **Resume Mechanism** — Automatically resumes interrupted transactions (energy rental, approval, or transfer confirmation) after page refresh or connection loss
+- **TronLink Integration** — Connect via TronLink wallet adapter for secure transaction signing without exposing private keys
+- **Private Key Mode** — Alternative direct signing mode for automated or headless usage
+- **CSV Import** — Upload recipient lists via CSV file for bulk transfer preparation
+- **Simulate Before Send** — Estimate energy cost before committing to a transfer
+- **Transaction Records** — View historical TRC20 transfer records for the active wallet
+- **Mainnet / Shasta Testnet** — Supports both environments for development and production
+
+## Tech Stack
+
+| Category | Library |
+|---|---|
+| Framework | [Next.js](https://nextjs.org) + [Bun](https://bun.sh) |
+| Blockchain | [TronWeb](https://github.com/tronprotocol/tronweb) |
+| UI Components | [shadcn/ui](https://ui.shadcn.com) + Tailwind CSS |
+| State Management | [Zustand](https://zustand-demo.pmnd.rs) (with localStorage persistence) |
+| CSV Parsing | [PapaParse](https://www.papaparse.com) + [ReactDropzone](https://www.npmjs.com/package/react-dropzone) |
+| Wallet | TronLink Adapter |
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- [Bun](https://bun.sh) >= 1.0
+- A TronLink wallet (browser extension) or a TRON private key
+- TronGrid API key (for Mainnet usage)
+- TronScan API key
+
+### Installation
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
+git clone https://github.com/your-username/trc20-batch-sender.git
+cd trc20-batch-sender
+bun install
+```
+
+Create a .env.local file in the root directory reference to env.sample file
+
+## Run Development Server
+
+```bash
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Build for Production
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+bun run build
+bun start
+```
 
-## Learn More
+## Usage
 
-To learn more about Next.js, take a look at the following resources:
+- **Activate an account** — Connect via TronLink adapter or enter a private key
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Prepare recipients** — Manually enter addresses and amounts, or import a CSV file (sample CSV file could be found in public directory)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Simulate** — Run an energy estimation to calculate rental cost
 
-## Deploy on Vercel
+- **Enable Auto Energy Rental (optional)** — Let the app automatically rent energy before transfer to save on TRX fees
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **Approve & Transfer** — Approve the USDT spending allowance, then execute the batch transfer
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Monitor** — Track confirmation status in real time; refreshing the page will automatically resume any in-progress transaction
+
+### Disclaimer
+
+This tool interacts directly with the TRON blockchain and handles real assets. Always test on Shasta Testnet before using on Mainnet. The authors are not responsible for any loss of funds resulting from misuse.
