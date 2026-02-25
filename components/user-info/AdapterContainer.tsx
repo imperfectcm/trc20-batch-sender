@@ -8,19 +8,20 @@ import { WalletButtons } from './WalletButtons';
 
 export const AdapterContainer = () => {
     const [readyState, setReadyState] = useState(WalletReadyState.NotFound);
-
-    const adapters = useMemo(() => [
-        new TronLinkAdapter({ checkTimeout: 3000 }),
-    ], []);
+    const adapter = useMemo(() => new TronLinkAdapter(), []);
 
     useEffect(() => {
-        // console.log("adapters[0].readyState", adapters[0].readyState);
-        setReadyState(adapters[0].readyState);
-    }, [adapters]);
+        setReadyState(adapter.readyState);
+        adapter.on('readyStateChanged', (state) => {
+            setReadyState(state);
+        });
+        return () => {
+            adapter.removeAllListeners();
+        };
+    }, []);
 
-    console.log("AdapterContainer render, readyState:", readyState);
     return (
-        <WalletProvider adapters={adapters} disableAutoConnectOnLoad={true}>
+        <WalletProvider adapters={[adapter]} disableAutoConnectOnLoad={true}>
             <WalletButtons readyState={readyState} />
         </WalletProvider>
     );

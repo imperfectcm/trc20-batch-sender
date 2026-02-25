@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { WalletReadyState } from '@tronweb3/tronwallet-abstract-adapter';
 import { Unplug } from 'lucide-react';
 
-export const WalletButtons = ({ readyState }: { readyState?: WalletReadyState }) => {
+export const WalletButtons = ({ readyState }: { readyState: WalletReadyState }) => {
     // console.log("WalletButtons render, readyState:", readyState);
     const addressActivated = useSenderStore((state) => state.active.address);
     const connectAdapter = useSenderStore(state => state.connectAdapter);
@@ -42,7 +42,7 @@ export const WalletButtons = ({ readyState }: { readyState?: WalletReadyState })
         disconnectAdapter();
     }
 
-    if (readyState === WalletReadyState.NotFound || (!connected && addressActivated)) {
+    if (readyState !== WalletReadyState.Found || (!connected && addressActivated)) {
         return null;
     }
     return (
