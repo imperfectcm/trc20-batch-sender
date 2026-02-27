@@ -170,7 +170,7 @@ export const SingleTransferContainer = () => {
                                         <span className="font-mono">Energy Required:</span>
                                         {isLoading
                                             ? <span><Spinner /></span>
-                                            : <span>{energyRental.targetTier ?? <p className="text-red-600">N/A</p>}</span>
+                                            : <span className="flex gap-x-1">{energyRental.cost ?? <p className="text-red-600">N/A</p>} {energyRental.cost && "TRX"}</span>
                                         }
                                     </div>
                                     <div className="flex justify-between max-sm:flex-col">
