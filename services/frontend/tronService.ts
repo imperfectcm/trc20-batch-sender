@@ -107,7 +107,6 @@ class TronFrontendService {
         const { txid, token, maxAttempts = 24 } = payload;
         for (let i = 0; i < maxAttempts; i++) {
             const info = await this.tronWeb.trx.getTransactionInfo(txid);
-            console.log("Tx info: ", info);
             if (token === "TRX" && info && info.blockNumber) {
                 return true; // TRX transfer is confirmed if blockNumber exists
             }

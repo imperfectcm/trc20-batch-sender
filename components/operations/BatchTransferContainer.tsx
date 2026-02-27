@@ -221,6 +221,13 @@ export const BatchTransferContainer = () => {
                                             }
                                         </div>
                                         <div className="flex justify-between max-sm:flex-col">
+                                            <span className="font-mono">Energy Cost:</span>
+                                            {isLoading
+                                                ? <span><Spinner /></span>
+                                                : <span className="flex gap-x-1">{energyRental.cost ?? <p className="text-red-600">N/A</p>} {energyRental.cost && "TRX"}</span>
+                                            }
+                                        </div>
+                                        <div className="flex justify-between max-sm:flex-col">
                                             <span className="font-mono">Auto Rent Energy:</span>
                                             <span>{energyRental.enable ? "Enabled" : "Disabled"}</span>
                                         </div>
