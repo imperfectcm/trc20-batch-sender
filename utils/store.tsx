@@ -199,6 +199,7 @@ type OperationStates = {
         targetTier?: number,
         isMonitoring: boolean,
         txid?: string,
+        cost?: number,
     };
 
     singleTransferData: Partial<SingleTransferData>;
@@ -249,7 +250,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
             processStage: { single: '', batch: '' },
             updateProcess: (process) => set(state => ({ processStage: { ...state.processStage, ...process } })),
 
-            energyRental: { enable: false, isMonitoring: false },
+            energyRental: { enable: false, isMonitoring: false, cost: 0 },
             singleTransferData: { amount: 0, token: 'TRX', toAddress: "", txid: undefined, error: undefined },
             batchTransfers: { token: 'USDT', txid: undefined, error: undefined, data: [] },
 
@@ -273,7 +274,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
             },
 
             clearProcessStage: (type) => set(state => ({ processStage: { ...state.processStage, [type]: '' } })),
-            clearEnergyRental: () => set(state => ({ energyRental: { ...state.energyRental, isMonitoring: false, txid: undefined, targetTier: undefined } })),
+            clearEnergyRental: () => set(state => ({ energyRental: { ...state.energyRental, isMonitoring: false, txid: undefined, targetTier: undefined, cost: undefined } })),
 
             singlePreCheck: async (): Promise<boolean> => {
                 const { singleTransferData: req, isTransferPending } = get();
@@ -332,10 +333,15 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                     if (requireEnergy === 0) {
                         toast.success("Estimated energy cost is negligible. No rental needed");
                     }
-                    set({ energyRental: { ...energyRental, targetTier: requireEnergy } });
+                    const mode = sender.adapter ? "adapter" : "privateKey";
+                    const tron = new TronFrontendService(mode, { network: get().singleTransferData.network as Network, privateKey: sender.privateKey });
+                    const energyBalance = sender.profile.energy || 0;
+                    const energyCost = await tron.getEnergyCost(requireEnergy, energyBalance);
+
+                    set({ energyRental: { ...energyRental, targetTier: requireEnergy, cost: energyCost } });
                 } catch (error) {
                     const message = (error as Error).message;
-                    set({ energyRental: { ...energyRental, targetTier: undefined } });
+                    set({ energyRental: { ...energyRental, targetTier: undefined, cost: undefined } });
                     toast.error(message);
                 } finally {
                     updateProcess({ single: "idle" });
@@ -396,7 +402,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                     // 4: Monitor
                     updateProcess({ single: 'confirming' });
                     updateSingleTransfer({ txid });
-                    const txConfirmed = await tron.pollTx(txid);
+                    const txConfirmed = await tron.pollTx({ txid, token: get().singleTransferData.token as "TRX" | "USDT" });
                     if (!txConfirmed) {
                         updateProcess({ single: 'timeout' });
                         toast.warning("Transaction confirmation timed out");
@@ -501,7 +507,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                     // 5. Monitor approval transaction
                     updateProcess({ batch: 'approving' });
                     updateBatchTransfers({ txid: approval.txid });
-                    const txConfirmed = await tron.pollTx(approval.txid);
+                    const txConfirmed = await tron.pollTx({ txid: approval.txid, token: get().batchTransfers.token as "TRX" | "USDT" });
                     if (!txConfirmed) {
                         updateProcess({ batch: 'approving-timeout' });
                         toast.warning("Transaction confirmation timed out");
@@ -556,10 +562,14 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                     if (requireEnergy === 0) {
                         toast.success("Estimated energy cost is negligible. No rental needed");
                     }
-                    set({ energyRental: { ...energyRental, targetTier: requireEnergy ?? undefined } });
+                    const mode = sender.adapter ? "adapter" : "privateKey";
+                    const tron = new TronFrontendService(mode, { network: get().batchTransfers.network as Network, privateKey: sender.privateKey });
+                    const energyBalance = sender.profile.energy || 0;
+                    const energyCost = await tron.getEnergyCost(requireEnergy, energyBalance);
+                    set({ energyRental: { ...energyRental, targetTier: requireEnergy ?? undefined, cost: energyCost } });
                 } catch (error) {
                     const message = (error as Error).message;
-                    set({ energyRental: { ...energyRental, targetTier: undefined } });
+                    set({ energyRental: { ...energyRental, targetTier: undefined, cost: undefined } });
                     toast.error(message);
                 } finally {
                     updateProcess({ batch: "idle" });
@@ -618,7 +628,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                     // 4: Monitor
                     updateProcess({ batch: 'confirming' });
                     updateBatchTransfers({ txid });
-                    const txConfirmed = await tron.pollTx(txid);
+                    const txConfirmed = await tron.pollTx({ txid, token: get().batchTransfers.token as "TRX" | "USDT" });
                     if (!txConfirmed) {
                         updateProcess({ batch: 'timeout' });
                         toast.warning("Transaction confirmation timed out");
@@ -676,7 +686,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                         } else {
                             updateProcess({ single: 'idle' });
                             updateSingleTransfer({ txid: undefined, error: undefined });
-                            set({ energyRental: { ...energyRental, txid: undefined, isMonitoring: false } });
+                            set({ energyRental: { ...energyRental, txid: undefined, isMonitoring: false, targetTier: undefined, cost: undefined } });
                             toast.success("Energy acquired! Please submit Transfer again immediately.");
                         }
                         return;
@@ -687,7 +697,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                         updateProcess({ single: 'confirming' });
                         const mode = sender.adapter ? "adapter" : "privateKey";
                         const tron = new TronFrontendService(mode, { network: singleTransferData.network as Network, privateKey: sender.privateKey });
-                        const txConfirmed = await tron.pollTx(singleTransferData.txid!);
+                        const txConfirmed = await tron.pollTx({ txid: singleTransferData.txid!, token: singleTransferData.token as "TRX" | "USDT" });
                         if (!txConfirmed) {
                             updateProcess({ single: 'timeout' });
                             toast.warning("Transaction confirmation timed out");
@@ -740,7 +750,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                         toast.info("Resuming batch transfer approval monitoring...");
                         const mode = sender.adapter ? "adapter" : "privateKey";
                         const tron = new TronFrontendService(mode, { network: batchTransfers.network as Network, privateKey: sender.privateKey });
-                        const txConfirmed = await tron.pollTx(batchTransfers.txid!);
+                        const txConfirmed = await tron.pollTx({ txid: batchTransfers.txid!, token: batchTransfers.token as "TRX" | "USDT" });
                         if (!txConfirmed) {
                             updateProcess({ batch: 'timeout' });
                             toast.warning("Transaction confirmation timed out");
@@ -762,7 +772,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                         } else {
                             updateProcess({ batch: 'idle' });
                             updateBatchTransfers({ txid: undefined, error: undefined });
-                            set({ energyRental: { ...energyRental, txid: undefined, isMonitoring: false }, });
+                            set({ energyRental: { ...energyRental, txid: undefined, isMonitoring: false, targetTier: undefined, cost: undefined } });
                             toast.success("Energy acquired! Please submit Transfer again immediately.");
                         }
                         return;
@@ -773,7 +783,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                         toast.info("Resuming batch transaction confirmation monitoring...");
                         const mode = sender.adapter ? "adapter" : "privateKey";
                         const tron = new TronFrontendService(mode, { network: batchTransfers.network as Network, privateKey: sender.privateKey });
-                        const txConfirmed = await tron.pollTx(batchTransfers.txid!);
+                        const txConfirmed = await tron.pollTx({ txid: batchTransfers.txid!, token: batchTransfers.token as "TRX" | "USDT" });
                         if (!txConfirmed) {
                             updateProcess({ batch: 'timeout' });
                             toast.warning("Transaction confirmation timed out");

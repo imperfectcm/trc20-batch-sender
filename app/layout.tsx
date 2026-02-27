@@ -7,7 +7,7 @@ import "../css/loader.css";
 import "../css/container.css";
 import { Toaster } from "@/components/ui/sonner";
 import { Navbar } from "@/components/utils/Navbar";
-import { Particles } from "@/components/utils/PaticlesNackground";
+import { Particles } from "@/components/utils/PaticlesBackground";
 
 const quicksand = Quicksand({
   subsets: ['latin'],
