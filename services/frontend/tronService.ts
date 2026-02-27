@@ -1,4 +1,5 @@
 import { API_ENDPOINTS, MAX_UINT256, Network } from "@/models/network";
+import { RENTAL_PACKAGES } from "@/models/transfer";
 import { api } from "@/utils/api";
 import { SignedTransaction, Transaction } from "@tronweb3/tronwallet-abstract-adapter";
 import { TronLinkAdapter } from "@tronweb3/tronwallet-adapters";
@@ -13,6 +14,7 @@ class TronFrontendService {
 
     private static API_ENDPOINTS = API_ENDPOINTS;
     private static MAX_UINT256 = MAX_UINT256;
+    private static RENTAL_PACKAGES = RENTAL_PACKAGES;
 
     constructor(mode: 'adapter' | 'privateKey', config: { network: Network, privateKey?: string }) {
         this.tronWeb = new TronWeb({
@@ -61,6 +63,36 @@ class TronFrontendService {
         }
     }
 
+    async getEnergyCost(energyReq: number, energyBalance: number): Promise<number> {
+        try {
+            const missingEnergy = Math.max(0, energyReq - energyBalance);
+            if (missingEnergy === 0) return 0;
+
+            let remainingNeeded = missingEnergy;
+            let totalAmount = 0;
+
+            const premiumPkg = TronFrontendService.RENTAL_PACKAGES[0];
+            const premiumCount = Math.floor(remainingNeeded / premiumPkg.energy);
+            if (premiumCount > 0) {
+                totalAmount += premiumCount * premiumPkg.price;
+                remainingNeeded -= premiumCount * premiumPkg.energy;
+            }
+
+            if (remainingNeeded > 0) {
+                const stdPkg = TronFrontendService.RENTAL_PACKAGES[1];
+                if (remainingNeeded > stdPkg.energy) {
+                    totalAmount += premiumPkg.price;
+                } else {
+                    totalAmount += stdPkg.price;
+                }
+            }
+            return totalAmount;
+        } catch (error) {
+            console.error("Failed to estimate energy cost:", error);
+            throw error;
+        }
+    }
+
     // Broadcast transaction
     async broadcast(signedTx: any): Promise<{ txid: string }> {
         const result = await this.tronWeb.trx.sendRawTransaction(signedTx);
@@ -71,9 +103,14 @@ class TronFrontendService {
     }
 
     // Check transaction confirmation status
-    async pollTx(txid: string, maxAttempts = 24): Promise<boolean> {
+    async pollTx(payload: { txid: string, token: "TRX" | "USDT", maxAttempts?: number }): Promise<boolean> {
+        const { txid, token, maxAttempts = 24 } = payload;
         for (let i = 0; i < maxAttempts; i++) {
             const info = await this.tronWeb.trx.getTransactionInfo(txid);
+            console.log("Tx info: ", info);
+            if (token === "TRX" && info && info.blockNumber) {
+                return true; // TRX transfer is confirmed if blockNumber exists
+            }
             if (info && info.receipt?.result) {
                 if (info.receipt.result === 'SUCCESS') {
                     return true;

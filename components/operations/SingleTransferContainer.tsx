@@ -174,6 +174,13 @@ export const SingleTransferContainer = () => {
                                         }
                                     </div>
                                     <div className="flex justify-between max-sm:flex-col">
+                                        <span className="font-mono">Energy Cost:</span>
+                                        {isLoading
+                                            ? <span><Spinner /></span>
+                                            : <span>{energyRental.cost ?? <p className="text-red-600">N/A</p>} TRX</span>
+                                        }
+                                    </div>
+                                    <div className="flex justify-between max-sm:flex-col">
                                         <span className="font-mono">Auto Rent Energy:</span>
                                         <span>{energyRental.enable ? "Enabled" : "Disabled"}</span>
                                     </div>
