@@ -129,255 +129,142 @@ export const TransferStatusContainer = ({ transferType = "single" }: TransferSta
         clearEnergyRental();
     }
 
-    if (!privateKeyActivated) {
-        return null
-    };
+    if (!privateKeyActivated) return null;
 
-    if (transferType === "single" && !isTransferPending("batch") && !!transferData.toAddress && processStage.single !== "") {
-        return (
-            <article className="relative min-h-60 max-h-[80dvh] w-full flex flex-col gap-y-2 bg-orange-100/10 p-2 rounded-lg">
-                {processStage.single === "idle" && (
-                    <>
-                        <section className="rounded-lg p-2 bg-stone-800">
-                            <div className="flex">
-                                <p className="font-mono">Idle</p>
-                            </div>
-                        </section>
-                        <TransferInfoContainer transferData={transferData} ringColor="ring-stone-500" txidColor="text-stone-500" />
-                    </>
-                )}
+    const isSingle = transferType === "single";
+    const stage = processStage[transferType];
+    const network = isSingle ? transferData.network : batchTransfers.network;
+    const handleResumeFn = isSingle ? handleResume : handleBatchResume;
+    const handleClear = isSingle ? handleClearSingleTransfer : handleClearBatchTransfers;
 
-                {processStage.single === "renting-energy" && !energyRental.txid && (
-                    <section className="transfer-status-container ring-1 ring-amber-500">
-                        <p className="animate-pulse">
-                            Renting {energyRental.targetTier} energy on {transferData.network} network...
-                        </p>
+    const visible = isSingle
+        ? !isTransferPending("batch") && !!transferData.toAddress && stage !== ""
+        : !isTransferPending("single") && !!batchTransfers.data?.length && stage !== "";
+
+    if (!visible) return null;
+
+    const InfoContainer = ({ ringColor, txidColor }: { ringColor: string; txidColor: string }) =>
+        isSingle
+            ? <TransferInfoContainer transferData={transferData} ringColor={ringColor} txidColor={txidColor} />
+            : (
+                <section className="w-full overflow-y-auto p-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-neutral-600 [&::-webkit-scrollbar-thumb]:rounded-full">
+                    <BatchTransferInfoContainer batchTransfers={batchTransfers} ringColor={ringColor} txidColor={txidColor} />
+                </section>
+            );
+
+    return (
+        <article className="relative min-h-60 max-h-[80dvh] w-full flex flex-col gap-y-2 bg-orange-100/10 p-2 rounded-lg overflow-y-auto">
+
+            {stage === "idle" && (
+                <>
+                    <section className="rounded-lg p-2 bg-stone-800">
+                        <p className="font-mono">Idle</p>
                     </section>
-                )}
+                    <InfoContainer ringColor="ring-stone-500" txidColor="text-stone-500" />
+                </>
+            )}
 
-                {processStage.single === "renting-energy" && energyRental.txid && (
-                    <section className="transfer-status-container ring-1 ring-orange-500">
-                        <div className="w-full flex flex-col">
-                            <span className="w-full flex justify-between animate-pulse">
-                                <p>Energy rental submitted. Waiting for energy acquisition...</p>
-                                <p>30 - 90 seconds</p>
-                            </span>
-                            <div className="flex gap-x-1 mt-1 items-center">
-                                Txid: <p className="text-orange-500">{energyRental.txid}</p>
-                                <CopyButton content={energyRental.txid} size="sm" variant="ghost" />
-                            </div>
+            {/* Batch-only: approving allowance */}
+            {!isSingle && stage === "approving" && (
+                <>
+                    <section className="rounded-lg p-2 bg-yellow-500">
+                        <p className="font-mono animate-pulse">Approving Allowance...</p>
+                    </section>
+                    <InfoContainer ringColor="ring-yellow-500" txidColor="text-yellow-500" />
+                </>
+            )}
+
+            {stage === "renting-energy" && !energyRental.txid && (
+                <section className="transfer-status-container ring-1 ring-amber-500">
+                    <p className="animate-pulse">
+                        Renting {energyRental.targetTier} energy on {network} network...
+                    </p>
+                </section>
+            )}
+
+            {stage === "renting-energy" && energyRental.txid && (
+                <section className="transfer-status-container ring-1 ring-orange-500">
+                    <div className="w-full flex flex-col">
+                        <span className="w-full flex justify-between animate-pulse">
+                            <p>Energy rental submitted. Waiting for energy acquisition...</p>
+                            <p>30 - 90 seconds</p>
+                        </span>
+                        <div className="flex gap-x-1 mt-1 items-center">
+                            Txid: <p className="text-orange-500">{energyRental.txid}</p>
+                            <CopyButton content={energyRental.txid} size="sm" variant="ghost" />
+                        </div>
+                    </div>
+                </section>
+            )}
+
+            {stage === "broadcasting" && (
+                <>
+                    <section className="rounded-lg p-2 bg-indigo-800">
+                        <p className="font-mono animate-pulse">Broadcasting Transfer...</p>
+                    </section>
+                    <InfoContainer ringColor="ring-indigo-500" txidColor="text-indigo-500" />
+                </>
+            )}
+
+            {stage === "confirming" && (
+                <>
+                    <section className="rounded-lg p-2 bg-sky-800">
+                        <div className="w-full flex justify-between animate-pulse">
+                            <p className="font-mono">Transfer Broadcasted, Monitoring Confirm Status...</p>
+                            <p className="font-mono">30 - 90 seconds</p>
                         </div>
                     </section>
-                )}
+                    <InfoContainer ringColor="ring-sky-500" txidColor="text-sky-500" />
+                </>
+            )}
 
-                {processStage.single === "broadcasting" && (
-                    <>
-                        <section className="rounded-lg p-2 bg-indigo-800">
-                            <p className="font-mono animate-pulse">Broadcasting Transfer...</p>
-                        </section>
-                        <TransferInfoContainer transferData={transferData} ringColor="ring-indigo-500" txidColor="text-indigo-500" />
-                    </>
-                )}
-
-                {processStage.single === "confirming" && (
-                    <>
-                        <section className="rounded-lg p-2 bg-sky-800">
-                            <div className="w-full flex justify-between animate-pulse">
-                                <p className="font-mono">Transfer Broadcasted, Monitoring Confirm Status...</p>
-                                <p className="font-mono">30 - 90 seconds</p>
-                            </div>
-                        </section>
-                        <TransferInfoContainer transferData={transferData} ringColor="ring-sky-500" txidColor="text-sky-500" />
-                    </>
-                )}
-
-                {["energy-timeout", "timeout"].includes(processStage.single) && (
-                    <>
-                        <section className="relative w-full flex justify-between items-center rounded-lg p-2 bg-stone-600">
-                            <p className="font-mono text-stone-200">
-                                Confirmation Progress Time-out
-                            </p>
-                            <div>
-                                <Button variant="ghost" size="sm" onClick={handleResume}
-                                    className="h-auto p-1 text-stone-400 hover:text-tangerine">
-                                    Resume <RefreshCw size={16} />
-                                </Button>
-                            </div>
-                        </section>
-                        <TransferInfoContainer transferData={transferData} ringColor="ring-stone-400" txidColor="text-stone-400" />
-                    </>
-                )}
-
-                {processStage.single === "confirmed" && (
-                    <>
-                        <section className="rounded-lg p-2 bg-emerald-700">
-                            <p className="font-mono">
-                                Transfer Confirmed
-                            </p>
-                        </section>
-                        <TransferInfoContainer transferData={transferData} ringColor="ring-emerald-500" txidColor="text-emerald-500" />
-                    </>
-                )}
-
-                {processStage.single === "failed" && (
-                    <>
-                        <section className="rounded-lg p-2 bg-red-800">
-                            <p className="font-mono">
-                                Transfer Failed
-                            </p>
-                        </section>
-                        <TransferInfoContainer transferData={transferData} ringColor="ring-red-500" txidColor="text-red-500" />
-                    </>
-                )}
-
-                {["timeout", "confirmed", "failed"].includes(processStage.single) &&
-                    <aside className="w-full text-center mt-4">
-                        <Button variant="outline"
-                            disabled={isLoading || isTransferActive("single")}
-                            className="bg-transparent text-stone-400 hover:text-tangerine"
-                            onClick={handleClearSingleTransfer}>
-                            Clear Result
+            {(isSingle ? ["energy-timeout", "timeout"] : ["approving-timeout", "energy-timeout", "timeout"]).includes(stage) && (
+                <>
+                    <section className="relative w-full flex justify-between items-center rounded-lg p-2 bg-stone-600">
+                        <p className="font-mono text-stone-200">Confirmation Progress Time-out</p>
+                        <Button variant="ghost" size="sm" onClick={handleResumeFn}
+                            className="h-auto p-1 text-stone-400 hover:text-tangerine">
+                            Resume <RefreshCw size={16} />
                         </Button>
-                    </aside>
-                }
-
-                {isLoading &&
-                    <aside className="-z-10 absolute top-0 left-0 w-full h-full flex justify-center items-center opacity-30">
-                        <HueLoader />
-                    </aside>
-                }
-            </article >
-        );
-    }
-
-    if (transferType === "batch" && !isTransferPending("single") && batchTransfers.data && batchTransfers.data.length > 0 && processStage.batch !== "") {
-        return (
-            <article className="relative min-h-60 max-h-[80dvh] w-full flex flex-col gap-y-2 bg-orange-100/10 p-2 rounded-lg">
-                {processStage.batch === "idle" && (
-                    <>
-                        <section className="rounded-lg p-2 bg-stone-800">
-                            <div className="flex">
-                                <p className="font-mono">Idle</p>
-                            </div>
-                        </section>
-                        <BatchTransferInfoContainer batchTransfers={batchTransfers} ringColor="ring-stone-500" txidColor="text-stone-500" />
-                    </>
-                )}
-
-                {processStage.batch === "approving" && (
-                    <>
-                        <section className="rounded-lg p-2 bg-yellow-500">
-                            <div className="flex">
-                                <p className="font-mono animate-pulse">Approving Allowance...</p>
-                            </div>
-                        </section>
-                        <BatchTransferInfoContainer batchTransfers={batchTransfers} ringColor="ring-yellow-500" txidColor="text-yellow-500" />
-                    </>
-                )}
-
-                {processStage.batch === "renting-energy" && !energyRental.txid && (
-                    <section className="transfer-status-container ring-1 ring-amber-500">
-                        <p className="animate-pulse">
-                            Renting {energyRental.targetTier} energy on {batchTransfers.network} network...
-                        </p>
                     </section>
-                )}
+                    <InfoContainer ringColor="ring-stone-400" txidColor="text-stone-400" />
+                </>
+            )}
 
-                {processStage.batch === "renting-energy" && energyRental.txid && (
-                    <section className="transfer-status-container ring-1 ring-orange-500">
-                        <div className="w-full flex flex-col">
-                            <span className="w-full flex justify-between animate-pulse">
-                                <p>Energy rental submitted. Waiting for energy acquisition...</p>
-                                <p>30 - 90 seconds</p>
-                            </span>
-                            <div className="flex gap-x-1 mt-1 items-center">
-                                Txid: <p className="text-orange-500">{energyRental.txid}</p>
-                                <CopyButton content={energyRental.txid} size="sm" variant="ghost" />
-                            </div>
-                        </div>
+            {stage === "confirmed" && (
+                <>
+                    <section className="rounded-lg p-2 bg-emerald-700">
+                        <p className="font-mono">Transfer Confirmed</p>
                     </section>
-                )}
+                    <InfoContainer ringColor="ring-emerald-500" txidColor="text-emerald-500" />
+                </>
+            )}
 
-                {processStage.batch === "broadcasting" && (
-                    <>
-                        <section className="rounded-lg p-2 bg-indigo-800">
-                            <p className="font-mono animate-pulse">Broadcasting Transfer...</p>
-                        </section>
-                        <BatchTransferInfoContainer batchTransfers={batchTransfers} ringColor="ring-indigo-500" txidColor="text-indigo-500" />
-                    </>
-                )}
+            {stage === "failed" && (
+                <>
+                    <section className="rounded-lg p-2 bg-red-800">
+                        <p className="font-mono">Transfer Failed</p>
+                    </section>
+                    <InfoContainer ringColor="ring-red-500" txidColor="text-red-500" />
+                </>
+            )}
 
-                {processStage.batch === "confirming" && (
-                    <>
-                        <section className="rounded-lg p-2 bg-sky-800">
-                            <div className="w-full flex justify-between animate-pulse">
-                                <p className="font-mono">Transfer Broadcasted, Monitoring Confirm Status...</p>
-                                <p className="font-mono">30 - 90 seconds</p>
-                            </div>
-                        </section>
-                        <BatchTransferInfoContainer batchTransfers={batchTransfers} ringColor="ring-sky-500" txidColor="text-sky-500" />
-                    </>
-                )}
+            {["timeout", "confirmed", "failed"].includes(stage) && (
+                <aside className="w-full text-center mt-4">
+                    <Button variant="outline"
+                        disabled={isLoading || isTransferActive(transferType)}
+                        className="bg-transparent text-stone-400 hover:text-tangerine"
+                        onClick={handleClear}>
+                        Clear Result
+                    </Button>
+                </aside>
+            )}
 
-                {(["approving-timeout", "energy-timeout", "timeout"].includes(processStage.batch)) && (
-                    <>
-                        <section className="relative w-full flex justify-between items-center rounded-lg p-2 bg-stone-600">
-                            <p className="font-mono text-stone-200">
-                                Confirmation Progress Time-out
-                            </p>
-                            <div>
-                                <Button variant="ghost" size="sm" onClick={handleBatchResume}
-                                    className="h-auto p-1 text-stone-400 hover:text-tangerine">
-                                    Resume <RefreshCw size={16} />
-                                </Button>
-                            </div>
-                        </section>
-                        <BatchTransferInfoContainer batchTransfers={batchTransfers} ringColor="ring-stone-400" txidColor="text-stone-400" />
-                    </>
-                )}
-
-                {processStage.batch === "confirmed" && (
-                    <>
-                        <section className="rounded-lg p-2 bg-emerald-700">
-                            <p className="font-mono">
-                                Transfer Confirmed
-                            </p>
-                        </section>
-                        <BatchTransferInfoContainer batchTransfers={batchTransfers} ringColor="ring-emerald-500" txidColor="text-emerald-500" />
-                    </>
-                )}
-
-                {processStage.batch === "failed" && (
-                    <>
-                        <section className="rounded-lg p-2 bg-red-800">
-                            <p className="font-mono">
-                                Transfer Failed
-                            </p>
-                        </section>
-                        <BatchTransferInfoContainer batchTransfers={batchTransfers} ringColor="ring-red-500" txidColor="text-red-500" />
-                    </>
-                )}
-
-                {["timeout", "confirmed", "failed"].includes(processStage.batch) &&
-                    <aside className="w-full text-center mt-4">
-                        <Button variant="outline"
-                            disabled={isLoading || isTransferActive("batch")}
-                            className="bg-transparent text-stone-400 hover:text-tangerine"
-                            onClick={handleClearBatchTransfers}>
-                            Clear Result
-                        </Button>
-                    </aside>
-                }
-
-                {isLoading &&
-                    <aside className="-z-10 absolute top-0 left-0 w-full h-full flex justify-center items-center opacity-30">
-                        <HueLoader />
-                    </aside>
-                }
-            </article>
-
-        )
-    }
-
-    return null;
+            {isLoading && (
+                <aside className="-z-10 absolute top-0 left-0 w-full h-full flex justify-center items-center opacity-30">
+                    <HueLoader />
+                </aside>
+            )}
+        </article>
+    );
 };

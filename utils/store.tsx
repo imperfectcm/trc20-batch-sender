@@ -277,12 +277,12 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
             clearEnergyRental: () => set(state => ({ energyRental: { ...state.energyRental, isMonitoring: false, txid: undefined, targetTier: undefined, cost: undefined } })),
 
             singlePreCheck: async (): Promise<boolean> => {
-                const { singleTransferData: req, isTransferPending } = get();
+                const { singleTransferData: req, isTransferPending, processStage } = get();
                 const sender = useSenderStore.getState();
                 let pass = true;
 
-                if (isTransferPending("single") || isTransferPending("batch")) {
-                    toast.warning("Transfer is already in progress");
+                if (isTransferPending("single") || isTransferPending("batch") || processStage.single === 'confirmed') {
+                    toast.warning("Clear current transfer status before proceeding");
                     return false;
                 }
                 if (!sender.active.address || !sender.active.privateKey) {
@@ -293,23 +293,23 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                     toast.warning("Missing required fields");
                     pass = false;
                 }
-                if (!await await api(`/api/validation/address`, { address: req.toAddress || "" })) pass = false;
+                if (!await api(`/api/validation/address`, { address: req.toAddress || "" })) pass = false;
 
-                if (!pass) { set({ isLoading: false }) };
                 return pass;
             },
 
             simulateSingleTransfer: async () => {
+                if (get().isLoading) return;
+                set({ isLoading: true });
                 const { updateProcess, singlePreCheck, updateSingleTransfer, energyRental, clearEnergyRental } = get();
                 const sender = useSenderStore.getState();
 
-                // 1. Pre-check
-                const preCheckPass = await singlePreCheck();
-                if (!preCheckPass) return;
-
                 try {
+                    // 1. Pre-check
+                    const preCheckPass = await singlePreCheck();
+                    if (!preCheckPass) return;
+
                     // 2: Update Context
-                    set({ isLoading: true });
                     updateSingleTransfer({
                         network: sender.network,
                         fromAddress: sender.address,
@@ -339,26 +339,28 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                     const energyCost = await tron.getEnergyCost(requireEnergy, energyBalance);
 
                     set({ energyRental: { ...energyRental, targetTier: requireEnergy, cost: energyCost } });
+                    updateProcess({ single: "idle" });
                 } catch (error) {
                     const message = (error as Error).message;
                     set({ energyRental: { ...energyRental, targetTier: undefined, cost: undefined } });
+                    updateProcess({ single: "failed" });
                     toast.error(message);
                 } finally {
-                    updateProcess({ single: "idle" });
                     set({ isLoading: false });
                 }
             },
 
             singleTransferFlow: async () => {
+                if (get().isLoading) return;
+                set({ isLoading: true });
                 const { updateProcess, singlePreCheck, updateSingleTransfer, energyRental, setEnergyRental } = get();
                 const sender = useSenderStore.getState();
 
-                // 1. Pre-check
-                const preCheckPass = await singlePreCheck();
-                if (!preCheckPass) return;
-
                 try {
-                    set({ isLoading: true });
+                    // 1. Pre-check
+                    const preCheckPass = await singlePreCheck();
+                    if (!preCheckPass) return;
+
                     const mode = sender.adapter ? "adapter" : "privateKey";
                     const tron = new TronFrontendService(mode, { network: get().singleTransferData.network as Network, privateKey: sender.privateKey });
 
@@ -421,12 +423,12 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
             },
 
             batchPreCheck: async (): Promise<boolean> => {
-                const { batchTransfers: req, isTransferPending } = get();
+                const { batchTransfers: req, isTransferPending, processStage } = get();
                 const sender = useSenderStore.getState();
                 let pass = true;
 
-                if (isTransferPending("single") || isTransferPending("batch")) {
-                    toast.warning("Transfer is already in progress");
+                if (isTransferPending("single") || isTransferPending("batch") || processStage.batch === 'confirmed') {
+                    toast.warning("Clear current transfer status before proceeding");
                     return false;
                 }
                 if (!sender.active.address || !sender.active.privateKey) {
@@ -444,7 +446,6 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                     }
                 }
 
-                if (!pass) { set({ isLoading: false }) };
                 return pass;
             },
             approveBatchTransfer: async (): Promise<boolean> => {
@@ -529,16 +530,17 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                 }
             },
             simulateBatchTransfer: async () => {
+                if (get().isLoading) return;
+                set({ isLoading: true });
                 const { updateProcess, batchPreCheck, updateBatchTransfers, energyRental, clearEnergyRental } = get();
                 const sender = useSenderStore.getState();
 
-                // 1. Pre-check
-                const preCheckPass = await batchPreCheck();
-                if (!preCheckPass) return;
-
                 try {
+                    // 1. Pre-check
+                    const preCheckPass = await batchPreCheck();
+                    if (!preCheckPass) return;
+
                     // 2: Update Context
-                    set({ isLoading: true });
                     updateBatchTransfers({
                         network: sender.network,
                         fromAddress: sender.address,
@@ -566,26 +568,36 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                     const tron = new TronFrontendService(mode, { network: get().batchTransfers.network as Network, privateKey: sender.privateKey });
                     const energyBalance = sender.profile.energy || 0;
                     const energyCost = await tron.getEnergyCost(requireEnergy, energyBalance);
+                    if (energyCost > 100) {
+                        toast.error("Estimated energy cost exceeds the maximum threshold (100 TRX), adjust your transaction count.");
+                        set({ energyRental: { ...energyRental, targetTier: requireEnergy ?? undefined, cost: energyCost } });
+                        updateProcess({ batch: "failed" });
+                        return;
+                    }
                     set({ energyRental: { ...energyRental, targetTier: requireEnergy ?? undefined, cost: energyCost } });
+                    updateProcess({ batch: "idle" });
                 } catch (error) {
                     const message = (error as Error).message;
                     set({ energyRental: { ...energyRental, targetTier: undefined, cost: undefined } });
+                    updateProcess({ batch: "failed" });
                     toast.error(message);
                 } finally {
-                    updateProcess({ batch: "idle" });
                     set({ isLoading: false });
                 }
             },
             batchTransferFlow: async () => {
-                const { updateProcess, batchPreCheck, updateBatchTransfers, energyRental, setEnergyRental } = get();
+                if (get().isLoading) return;
+                set({ isLoading: true });
+                const { processStage, updateProcess, batchPreCheck, updateBatchTransfers, energyRental, setEnergyRental } = get();
                 const sender = useSenderStore.getState();
 
-                // 1. Pre-check
-                const preCheckPass = await batchPreCheck();
-                if (!preCheckPass) return;
-
                 try {
-                    set({ isLoading: true });
+                    // 1. Pre-check
+                    const preCheckPass = await batchPreCheck();
+                    if (!preCheckPass) return;
+
+                    if (processStage.batch === "failed") return;
+
                     const mode = sender.adapter ? "adapter" : "privateKey";
                     const tron = new TronFrontendService(mode, { network: get().batchTransfers.network as Network, privateKey: sender.privateKey });
 

@@ -3,7 +3,7 @@ import { useSenderStore } from "./store";
 export async function pollEnergy(payload: { requiredEnergy: number, timeoutMs?: number, intervalMs?: number }): Promise<boolean> {
     const {
         requiredEnergy,
-        timeoutMs = 180000,
+        timeoutMs = 240000, // Default timeout of 4 minutes
         intervalMs = 5000
     } = payload;
     const startTime = Date.now();
