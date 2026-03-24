@@ -40,8 +40,10 @@ export const SingleTransferContainer = () => {
     const transferFlow = useOperationStore((state) => state.singleTransferFlow);
     const isTransferActive = useOperationStore(state => state.isTransferActive);
     const isLoading = useOperationStore((state) => state.isLoading);
+    const process = useOperationStore(state => state.processStage.single);
 
     const disabled = isLoading || isTransferActive("single") || isTransferActive("batch");
+    const confirmed = process === "confirmed";
 
     const handleTriggleEnergyRental = () => {
         setEnergyRental({ ...energyRental, enable: !energyRental.enable });
@@ -94,7 +96,7 @@ export const SingleTransferContainer = () => {
                 <div className="flex gap-x-2">
                     <div className="basis-2/3">
                         <Label>Token</Label>
-                        <Select value={transferData.token} onValueChange={(value) => updateTransfer({ token: value })} disabled={disabled}>
+                        <Select value={transferData.token} onValueChange={(value) => updateTransfer({ token: value })} disabled={disabled || confirmed}>
                             <SelectTrigger className="w-full">
                                 <SelectValue placeholder="Select Token" />
                             </SelectTrigger>
@@ -113,7 +115,7 @@ export const SingleTransferContainer = () => {
                     <div className="basis-1/3">
                         <Label>Auto Rent Energy</Label>
                         <Button className={`${energyRental.enable && "hover:bg-tangerine/80 bg-tangerine/60 text-stone-50"} w-full`}
-                            variant="outline" onClick={handleTriggleEnergyRental} disabled={disabled}>
+                            variant="outline" onClick={handleTriggleEnergyRental} disabled={disabled || confirmed}>
                             <span className="flex items-center gap-x-1">
                                 {energyRental.enable
                                     ? <>Enabled<CheckCheck /></>
@@ -126,19 +128,19 @@ export const SingleTransferContainer = () => {
                 {/* The receiver address */}
                 <div>
                     <Label>Receiver Address</Label>
-                    <Input disabled={disabled} onChange={handleToAddressChange} value={transferData.toAddress} />
+                    <Input disabled={disabled || confirmed} onChange={handleToAddressChange} value={transferData.toAddress} />
                 </div>
                 {/* The transfer amount and send button*/}
                 <div className="flex gap-x-2">
                     <div className="basis-2/3">
                         <Label>Amount</Label>
-                        <Input disabled={disabled} onChange={handleAmountChange} value={transferData.amount} />
+                        <Input disabled={disabled || confirmed} onChange={handleAmountChange} value={transferData.amount} />
                     </div>
                     <div className="mt-auto basis-1/3">
                         <Dialog>
                             <DialogTrigger asChild>
                                 <Button className="hover:bg-tangerine/80 bg-tangerine/60 text-stone-50 w-full flex items-center gap-x-1"
-                                    disabled={disabled} onClick={handlePreview}>
+                                    disabled={disabled || confirmed || !transferData.toAddress || !transferData.amount} onClick={handlePreview}>
                                     <span>Preview</span><SendHorizontal />
                                 </Button>
                             </DialogTrigger>

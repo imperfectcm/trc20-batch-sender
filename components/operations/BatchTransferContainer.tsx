@@ -30,6 +30,7 @@ export const BatchTransferContainer = () => {
     const energyRental = useOperationStore(state => state.energyRental);
     const setEnergyRental = useOperationStore(state => state.setEnergyRental);
 
+    const process = useOperationStore(state => state.processStage.batch);
     const updateProcess = useOperationStore(state => state.updateProcess);
 
     const setBatchTransfers = useOperationStore(state => state.setBatchTransfers);
@@ -46,6 +47,7 @@ export const BatchTransferContainer = () => {
     const isLoading = useOperationStore((state) => state.isLoading);
 
     const disabled = isLoading || isTransferActive("single") || isTransferActive("batch");
+    const confirmed = process === "confirmed";
 
     const MAX_BATCH_SIZE = 100;
     const handleUpload = async (data: { header?: string[]; data: unknown[] }) => {
@@ -189,7 +191,7 @@ export const BatchTransferContainer = () => {
                             <Dialog>
                                 <DialogTrigger asChild>
                                     <Button className="hover:bg-tangerine/80 bg-tangerine/60 text-stone-50 flex items-center gap-x-1"
-                                        disabled={disabled} onClick={handlePreview}>
+                                        disabled={disabled || confirmed} onClick={handlePreview}>
                                         <span>Preview</span><SendHorizontal />
                                     </Button>
                                 </DialogTrigger>
@@ -211,7 +213,7 @@ export const BatchTransferContainer = () => {
                                         </div>
                                         <div className="flex justify-between max-sm:flex-col">
                                             <span className="font-mono">Total Amount:</span>
-                                            <span>{transfers.data?.reduce((acc, item) => acc + item.amount, 0) || <p className="text-red-600">N/A</p>}</span>
+                                            <span>{transfers.data?.reduce((acc, item) => acc + item.amount, 0).toFixed(2) || <p className="text-red-600">N/A</p>}</span>
                                         </div>
                                         <div className="flex justify-between max-sm:flex-col">
                                             <span className="font-mono">Energy Required:</span>
@@ -224,7 +226,7 @@ export const BatchTransferContainer = () => {
                                             <span className="font-mono">Energy Cost:</span>
                                             {isLoading
                                                 ? <span><Spinner /></span>
-                                                : <span className="flex gap-x-1">{energyRental.cost ?? <p className="text-red-600">N/A</p>} {energyRental.cost && "TRX"}</span>
+                                                : <span className={`flex gap-x-1 ${energyRental.cost && energyRental.cost > 100 && "text-red-600"}`}>{energyRental.cost ?? <p className="text-red-600">N/A</p>} {energyRental.cost && "TRX"}</span>
                                             }
                                         </div>
                                         <div className="flex justify-between max-sm:flex-col">
@@ -239,7 +241,7 @@ export const BatchTransferContainer = () => {
                                             </DialogClose>
                                             <DialogClose asChild>
                                                 <Button className="hover:bg-tangerine/80 bg-tangerine/60 text-stone-50 w-0 grow"
-                                                    onClick={transferFlow} disabled={disabled}>
+                                                    onClick={transferFlow} disabled={disabled || confirmed || process === "failed"}>
                                                     Send
                                                 </Button>
                                             </DialogClose>
