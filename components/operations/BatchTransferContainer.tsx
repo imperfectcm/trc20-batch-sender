@@ -213,7 +213,7 @@ export const BatchTransferContainer = () => {
                                         </div>
                                         <div className="flex justify-between max-sm:flex-col">
                                             <span className="font-mono">Total Amount:</span>
-                                            <span>{transfers.data?.reduce((acc, item) => acc + item.amount, 0).toFixed(2) || <p className="text-red-600">N/A</p>}</span>
+                                            <span>{transfers.data?.reduce((acc, item) => Math.round((acc + item.amount) * 100) / 100, 0) || <p className="text-red-600">N/A</p>}</span>
                                         </div>
                                         <div className="flex justify-between max-sm:flex-col">
                                             <span className="font-mono">Energy Required:</span>
@@ -226,7 +226,7 @@ export const BatchTransferContainer = () => {
                                             <span className="font-mono">Energy Cost:</span>
                                             {isLoading
                                                 ? <span><Spinner /></span>
-                                                : <span className={`flex gap-x-1 ${energyRental.cost && energyRental.cost > 100 && "text-red-600"}`}>{energyRental.cost ?? <p className="text-red-600">N/A</p>} {energyRental.cost && "TRX"}</span>
+                                                : <span className={`flex gap-x-1 ${energyRental.cost && energyRental.cost > 100 && "text-red-600"}`}>{energyRental.cost ?? <p className="text-red-600">N/A</p>}{energyRental.cost ? " TRX" : ""}</span>
                                             }
                                         </div>
                                         <div className="flex justify-between max-sm:flex-col">
