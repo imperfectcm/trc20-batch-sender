@@ -44,37 +44,6 @@ class TronService {
     // Validate TRON address
     validateAddress = (address: string): boolean => TronWeb.isAddress(address);
 
-    // Validate private key
-    validatePrivateKey = async (payload: { address: string, privateKey: string }): Promise<boolean> => {
-        const { address, privateKey } = payload;
-        if (!address) {
-            throw new Error("No address provided");
-        }
-
-        // In case of mnemonic phrase
-        if (privateKey.includes(" ")) {
-            try {
-                const account = TronWeb.fromMnemonic(privateKey);
-                const isValid = address === account.address;
-                return isValid;
-            } catch (error) {
-                throw new Error("Invalid mnemonic phrase");
-            }
-        }
-
-        const cleanKey = privateKey.replace(/^0x/, "");
-        if (cleanKey.length !== 64) {
-            throw new Error("Invalid private key length");
-        }
-        if (!/^[0-9a-fA-F]{64}$/.test(cleanKey)) {
-            throw new Error("Private key contains invalid characters");
-        }
-
-        const generatedAddress = TronWeb.address.fromPrivateKey(cleanKey);
-        const isValid = address === generatedAddress;
-        return isValid;
-    }
-
     // Get account info
     getAccount = async (payload: { network: Network, address: string }): Promise<Account> => {
         const { network, address } = payload;

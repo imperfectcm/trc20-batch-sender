@@ -8,6 +8,7 @@ import { api } from './api';
 import { pollEnergy } from './pollEnergy';
 import { BatchTransferData, ProcessStage, SingleTransferData } from '@/models/transfer';
 import { TronLinkAdapter } from '@tronweb3/tronwallet-adapters';
+import { deriveCredentialAccount } from '@/services/frontend/credentialValidation';
 import TronFrontendService from '@/services/frontend/tronService';
 
 type SenderStates = {
@@ -121,12 +122,19 @@ export const useSenderStore = create<SenderStates & SenderActions>()(
                 try {
                     const { address, active } = get();
                     set({ isLoading: true });
-                    const result = await api(`/api/validation/private-key`, { addressActivated: active.address, address, privateKey });
-                    if (!result) {
+                    if (!address || !active.address) {
+                        toast.warning("No address provided");
+                        return false;
+                    }
+
+                    const account = deriveCredentialAccount(privateKey);
+                    if (account.address !== address) {
                         toast.warning("Private key not matched");
                         return false;
                     }
-                    return !!result;
+
+                    set({ privateKey: account.privateKey });
+                    return true;
                 } catch (error) {
                     toast.error((error as Error).message || "Failed to validate private key");
                     return false;
