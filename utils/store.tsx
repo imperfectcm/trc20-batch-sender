@@ -334,7 +334,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                         toast.success("Estimated energy cost is negligible. No rental needed");
                     }
                     const mode = sender.adapter ? "adapter" : "privateKey";
-                    const tron = new TronFrontendService(mode, { network: get().singleTransferData.network as Network, privateKey: sender.privateKey });
+                    const tron = new TronFrontendService(mode, { network: get().singleTransferData.network as Network, privateKey: sender.privateKey, adapter: sender.adapter || undefined });
                     const energyBalance = sender.profile.energy || 0;
                     const energyCost = await tron.getEnergyCost(requireEnergy, energyBalance);
 
@@ -362,7 +362,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                     if (!preCheckPass) return;
 
                     const mode = sender.adapter ? "adapter" : "privateKey";
-                    const tron = new TronFrontendService(mode, { network: get().singleTransferData.network as Network, privateKey: sender.privateKey });
+                    const tron = new TronFrontendService(mode, { network: get().singleTransferData.network as Network, privateKey: sender.privateKey, adapter: sender.adapter || undefined });
 
                     // 2: Rent energy
                     if (energyRental.enable && energyRental.targetTier === undefined) {
@@ -459,7 +459,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                 try {
                     set({ isLoading: true });
                     const mode = sender.adapter ? "adapter" : "privateKey";
-                    const tron = new TronFrontendService(mode, { network: sender.network as Network, privateKey: sender.privateKey });
+                    const tron = new TronFrontendService(mode, { network: sender.network as Network, privateKey: sender.privateKey, adapter: sender.adapter || undefined });
 
                     // 2: Update Context
                     updateProcess({ batch: "idle" });
@@ -565,7 +565,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                         toast.success("Estimated energy cost is negligible. No rental needed");
                     }
                     const mode = sender.adapter ? "adapter" : "privateKey";
-                    const tron = new TronFrontendService(mode, { network: get().batchTransfers.network as Network, privateKey: sender.privateKey });
+                    const tron = new TronFrontendService(mode, { network: get().batchTransfers.network as Network, privateKey: sender.privateKey, adapter: sender.adapter || undefined });
                     const energyBalance = sender.profile.energy || 0;
                     const energyCost = await tron.getEnergyCost(requireEnergy, energyBalance);
                     if (energyCost > 100) {
@@ -599,7 +599,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                     if (processStage.batch === "failed") return;
 
                     const mode = sender.adapter ? "adapter" : "privateKey";
-                    const tron = new TronFrontendService(mode, { network: get().batchTransfers.network as Network, privateKey: sender.privateKey });
+                    const tron = new TronFrontendService(mode, { network: get().batchTransfers.network as Network, privateKey: sender.privateKey, adapter: sender.adapter || undefined });
 
                     // 2: Rent energy
                     if (energyRental.enable && energyRental.targetTier === undefined) {
@@ -708,7 +708,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                         toast.info("Resuming single transaction confirmation monitoring...");
                         updateProcess({ single: 'confirming' });
                         const mode = sender.adapter ? "adapter" : "privateKey";
-                        const tron = new TronFrontendService(mode, { network: singleTransferData.network as Network, privateKey: sender.privateKey });
+                        const tron = new TronFrontendService(mode, { network: singleTransferData.network as Network, privateKey: sender.privateKey, adapter: sender.adapter || undefined });
                         const txConfirmed = await tron.pollTx({ txid: singleTransferData.txid!, token: singleTransferData.token as "TRX" | "USDT" });
                         if (!txConfirmed) {
                             updateProcess({ single: 'timeout' });
@@ -761,7 +761,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                         updateProcess({ batch: 'approving' });
                         toast.info("Resuming batch transfer approval monitoring...");
                         const mode = sender.adapter ? "adapter" : "privateKey";
-                        const tron = new TronFrontendService(mode, { network: batchTransfers.network as Network, privateKey: sender.privateKey });
+                        const tron = new TronFrontendService(mode, { network: batchTransfers.network as Network, privateKey: sender.privateKey, adapter: sender.adapter || undefined });
                         const txConfirmed = await tron.pollTx({ txid: batchTransfers.txid!, token: batchTransfers.token as "TRX" | "USDT" });
                         if (!txConfirmed) {
                             updateProcess({ batch: 'timeout' });
@@ -794,7 +794,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                         updateProcess({ batch: 'confirming' });
                         toast.info("Resuming batch transaction confirmation monitoring...");
                         const mode = sender.adapter ? "adapter" : "privateKey";
-                        const tron = new TronFrontendService(mode, { network: batchTransfers.network as Network, privateKey: sender.privateKey });
+                        const tron = new TronFrontendService(mode, { network: batchTransfers.network as Network, privateKey: sender.privateKey, adapter: sender.adapter || undefined });
                         const txConfirmed = await tron.pollTx({ txid: batchTransfers.txid!, token: batchTransfers.token as "TRX" | "USDT" });
                         if (!txConfirmed) {
                             updateProcess({ batch: 'timeout' });
