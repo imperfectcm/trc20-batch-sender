@@ -17,7 +17,24 @@ export const RENTAL_PACKAGES = [
     { energy: 65000, price: 2.45, id: 'standard' }
 ] as const;
 
-export type ProcessStage = '' | 'idle' | 'approving' | 'estimating-energy' | 'renting-energy' | 'broadcasting' | 'confirming' | 'confirmed' | 'failed' | 'timeout' | 'approving-timeout' | 'energy-timeout';
+export type ProcessStage = '' | 'idle' | 'approving' | 'estimating-energy' | 'renting-energy' | 'broadcasting' | 'confirming' | 'confirmed' | 'failed' | 'timeout' | 'approving-timeout' | 'energy-timeout' | 'confirmation-unknown' | 'approving-unknown';
+
+export type PollTxResult =
+    | { status: 'confirmed' }
+    | { status: 'failed'; reason: string }
+    | { status: 'timeout' }
+    | { status: 'unknown'; reason: string };
+
+export type StoppedTransfer = {
+    type: 'single' | 'batch';
+    phase: 'transfer' | 'approval';
+    network: Network;
+    fromAddress: string;
+    token: string;
+    txid: string;
+    recipients: { toAddress: string; amount: number }[];
+    stoppedAt: number;
+};
 
 export type TransferReq = {
     network: string;

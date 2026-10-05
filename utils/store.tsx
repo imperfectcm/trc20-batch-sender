@@ -6,7 +6,7 @@ import { TronGridTrc20Transaction } from '@/models/tronResponse';
 
 import { api } from './api';
 import { pollEnergy } from './pollEnergy';
-import { BatchTransferData, ProcessStage, SingleTransferData } from '@/models/transfer';
+import { BatchTransferData, ProcessStage, SingleTransferData, type StoppedTransfer } from '@/models/transfer';
 import { TronLinkAdapter } from '@tronweb3/tronwallet-adapters';
 import TronFrontendService from '@/services/frontend/tronService';
 
@@ -204,6 +204,7 @@ type OperationStates = {
 
     singleTransferData: Partial<SingleTransferData>;
     batchTransfers: Partial<BatchTransferData>;
+    stoppedTransfers: StoppedTransfer[];
 }
 
 type OperationActions = {
@@ -233,6 +234,10 @@ type OperationActions = {
 
     isTransferActive: (type: "single" | "batch") => boolean;
     isTransferPending: (type: "single" | "batch") => boolean;
+    canClearTransfer: (type: "single" | "batch") => boolean;
+    canStopTransferTracking: (type: "single" | "batch") => boolean;
+    stopTransferTracking: (type: "single" | "batch", confirmation: string) => boolean;
+    removeStoppedTransfer: (index: number) => void;
     resumeTransferMonitoring: (manual?: boolean) => Promise<void>;
     resumeBatchTransferMonitoring: (manual?: boolean) => Promise<void>;
 
@@ -253,16 +258,29 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
             energyRental: { enable: false, isMonitoring: false, cost: 0 },
             singleTransferData: { amount: 0, token: 'TRX', toAddress: "", txid: undefined, error: undefined },
             batchTransfers: { token: 'USDT', txid: undefined, error: undefined, data: [] },
+            stoppedTransfers: [],
+            removeStoppedTransfer: (index) => set(state => ({
+                stoppedTransfers: state.stoppedTransfers.filter((_, recordIndex) => recordIndex !== index),
+            })),
 
             setLoading: (isLoading) => set({ isLoading }),
             setEnergyRental: (updates) => set(state => ({ energyRental: { ...state.energyRental, ...updates } })),
 
             updateSingleTransfer: (updates) => set(state => ({ singleTransferData: { ...state.singleTransferData, ...updates } })),
-            clearSingleTransfer: () => set({ singleTransferData: { amount: 0, token: 'TRX', toAddress: "", txid: undefined, error: undefined } }),
+            clearSingleTransfer: () => {
+                if (!get().canClearTransfer("single")) return;
+                set({ singleTransferData: { amount: 0, token: 'TRX', toAddress: "", txid: undefined, error: undefined } });
+            },
 
-            setBatchTransfers: (items) => set({ batchTransfers: items }),
+            setBatchTransfers: (items) => {
+                if (get().isTransferPending("single") || get().isTransferPending("batch")) return;
+                set({ batchTransfers: items });
+            },
             updateBatchTransfers: (updates) => set(state => ({ batchTransfers: { ...state.batchTransfers, ...updates } })),
-            clearBatchTransfers: () => set({ batchTransfers: { token: 'USDT', txid: undefined, error: undefined, data: [] } }),
+            clearBatchTransfers: () => {
+                if (!get().canClearTransfer("batch")) return;
+                set({ batchTransfers: { token: 'USDT', txid: undefined, error: undefined, data: [] } });
+            },
 
             isTransferActive: (type) => {
                 const stage = get().processStage[type];
@@ -270,10 +288,54 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
             },
             isTransferPending: (type: "single" | "batch") => {
                 const stage = get().processStage[type];
-                return ["approving", "estimating-energy", "renting-energy", "broadcasting", "confirming", "energy-timeout", "timeout"].includes(stage);
+                return ["approving", "estimating-energy", "renting-energy", "broadcasting", "confirming", "energy-timeout", "timeout", "approving-timeout", "confirmation-unknown", "approving-unknown"].includes(stage);
+            },
+            canClearTransfer: (type) => {
+                const { isLoading, processStage, singleTransferData, batchTransfers } = get();
+                if (isLoading || get().isTransferPending(type === "single" ? "batch" : "single")) return false;
+                const txid = type === "single" ? singleTransferData.txid : batchTransfers.txid;
+                return !get().isTransferPending(type)
+                    || (["energy-timeout", "estimating-energy"].includes(processStage[type]) && !txid);
+            },
+            canStopTransferTracking: (type) => {
+                const { isLoading, processStage, singleTransferData, batchTransfers } = get();
+                const data = type === "single" ? singleTransferData : batchTransfers;
+                return !isLoading && ["timeout", "confirmation-unknown", "approving-timeout", "approving-unknown"].includes(processStage[type])
+                    && !!data.txid && (data.network === "mainnet" || data.network === "shasta");
+            },
+            stopTransferTracking: (type, confirmation) => {
+                if (confirmation !== "CANCEL" || !get().canStopTransferTracking(type)) return false;
+                const state = get();
+                const data = type === "single" ? state.singleTransferData : state.batchTransfers;
+                const record: StoppedTransfer = {
+                    type,
+                    phase: state.processStage[type].startsWith("approving") ? "approval" : "transfer",
+                    network: data.network as Network,
+                    fromAddress: data.fromAddress || "",
+                    token: data.token || "USDT",
+                    txid: data.txid!,
+                    recipients: type === "single"
+                        ? [{ toAddress: state.singleTransferData.toAddress || "", amount: state.singleTransferData.amount || 0 }]
+                        : (state.batchTransfers.data || []).map(({ toAddress, amount }) => ({ toAddress, amount })),
+                    stoppedAt: Date.now(),
+                };
+                // Reset atomically so no later resume can see the stopped task as pending.
+                set({
+                    stoppedTransfers: [...state.stoppedTransfers, record],
+                    processStage: { ...state.processStage, [type]: '' },
+                    ...(type === "single"
+                        ? { singleTransferData: { amount: 0, token: 'TRX', toAddress: "" } }
+                        : { batchTransfers: { token: 'USDT', data: [] } }),
+                    energyRental: state.isTransferPending(type === "single" ? "batch" : "single") ? state.energyRental
+                        : { enable: state.energyRental.enable, isMonitoring: false },
+                });
+                return true;
             },
 
-            clearProcessStage: (type) => set(state => ({ processStage: { ...state.processStage, [type]: '' } })),
+            clearProcessStage: (type) => {
+                if (!get().canClearTransfer(type)) return;
+                set(state => ({ processStage: { ...state.processStage, [type]: '' } }));
+            },
             clearEnergyRental: () => set(state => ({ energyRental: { ...state.energyRental, isMonitoring: false, txid: undefined, targetTier: undefined, cost: undefined } })),
 
             singlePreCheck: async (): Promise<boolean> => {
@@ -404,17 +466,12 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                     // 4: Monitor
                     updateProcess({ single: 'confirming' });
                     updateSingleTransfer({ txid });
-                    const txConfirmed = await tron.pollTx({ txid, token: get().singleTransferData.token as "TRX" | "USDT" });
-                    if (!txConfirmed) {
-                        updateProcess({ single: 'timeout' });
-                        toast.warning("Transaction confirmation timed out");
-                        return;
-                    }
+                    if (!await monitorTransaction(tron, "single", txid, get().singleTransferData.token as "TRX" | "USDT")) return;
 
                     updateProcess({ single: 'confirmed' });
                 } catch (error) {
                     const message = (error as Error).message;
-                    updateProcess({ single: 'failed' });
+                    updateProcess({ single: get().processStage.single === 'confirming' ? 'confirmation-unknown' : 'failed' });
                     updateSingleTransfer({ error: message });
                     toast.error(message);
                 } finally {
@@ -508,12 +565,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                     // 5. Monitor approval transaction
                     updateProcess({ batch: 'approving' });
                     updateBatchTransfers({ txid: approval.txid });
-                    const txConfirmed = await tron.pollTx({ txid: approval.txid, token: get().batchTransfers.token as "TRX" | "USDT" });
-                    if (!txConfirmed) {
-                        updateProcess({ batch: 'approving-timeout' });
-                        toast.warning("Transaction confirmation timed out");
-                        return false;
-                    }
+                    if (!await monitorTransaction(tron, "batch", approval.txid, get().batchTransfers.token as "TRX" | "USDT", true)) return false;
 
                     updateProcess({ batch: 'idle' });
                     updateBatchTransfers({ txid: undefined });
@@ -521,7 +573,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
 
                 } catch (error) {
                     const message = (error as Error).message;
-                    updateProcess({ batch: 'failed' });
+                    updateProcess({ batch: get().processStage.batch === 'approving' ? 'approving-unknown' : 'failed' });
                     updateBatchTransfers({ error: message });
                     toast.error(message);
                     return false;
@@ -640,17 +692,12 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                     // 4: Monitor
                     updateProcess({ batch: 'confirming' });
                     updateBatchTransfers({ txid });
-                    const txConfirmed = await tron.pollTx({ txid, token: get().batchTransfers.token as "TRX" | "USDT" });
-                    if (!txConfirmed) {
-                        updateProcess({ batch: 'timeout' });
-                        toast.warning("Transaction confirmation timed out");
-                        return;
-                    }
+                    if (!await monitorTransaction(tron, "batch", txid, get().batchTransfers.token as "TRX" | "USDT")) return;
 
                     updateProcess({ batch: 'confirmed' });
                 } catch (error) {
                     const message = (error as Error).message;
-                    updateProcess({ batch: 'failed' });
+                    updateProcess({ batch: get().processStage.batch === 'confirming' ? 'confirmation-unknown' : 'failed' });
                     updateBatchTransfers({ error: message });
                     toast.error(message);
                 } finally {
@@ -660,8 +707,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
 
             resumeTransferMonitoring: async (manual: boolean = false) => {
                 const { isTransferPending, isLoading, energyRental,
-                    singleTransferData, updateSingleTransfer, processStage, updateProcess,
-                    clearSingleTransfer, clearProcessStage, clearEnergyRental
+                    singleTransferData, updateSingleTransfer, processStage, updateProcess
                 } = get();
                 const sender = useSenderStore.getState();
 
@@ -669,16 +715,13 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                 if (isLoading) return;
                 if (!isTransferPending("single")) return;
                 if (sender.active.address && !!singleTransferData.fromAddress && sender.address !== singleTransferData.fromAddress) {
-                    clearSingleTransfer();
-                    clearProcessStage("single");
-                    clearEnergyRental();
-                    toast.info("Cleared tasks from previous account.");
+                    toast.warning("Switch back to the original account to check this task.");
                     return;
                 }
 
                 // 2. Determine conditions
                 const canResumeEnergyMonitoring = ["renting-energy", "energy-timeout"].includes(processStage.single);
-                const canResumeTransferMonitoring = ["confirming", "timeout"].includes(processStage.single) && !!singleTransferData.txid;
+                const canResumeTransferMonitoring = ["confirming", "timeout", "confirmation-unknown"].includes(processStage.single) && !!singleTransferData.txid;
 
                 if (!canResumeTransferMonitoring && !canResumeEnergyMonitoring) {
                     if (manual) toast.info("No interrupted task found to resume.")
@@ -709,17 +752,12 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                         updateProcess({ single: 'confirming' });
                         const mode = sender.adapter ? "adapter" : "privateKey";
                         const tron = new TronFrontendService(mode, { network: singleTransferData.network as Network, privateKey: sender.privateKey, adapter: sender.adapter || undefined });
-                        const txConfirmed = await tron.pollTx({ txid: singleTransferData.txid!, token: singleTransferData.token as "TRX" | "USDT" });
-                        if (!txConfirmed) {
-                            updateProcess({ single: 'timeout' });
-                            toast.warning("Transaction confirmation timed out");
-                            return;
-                        }
+                        if (!await monitorTransaction(tron, "single", singleTransferData.txid!, singleTransferData.token as "TRX" | "USDT")) return;
                         updateProcess({ single: 'confirmed' });
                     }
                 } catch (error) {
                     const message = (error as Error).message;
-                    updateProcess({ single: 'failed' });
+                    updateProcess({ single: canResumeTransferMonitoring ? 'confirmation-unknown' : 'energy-timeout' });
                     updateSingleTransfer({ error: message });
                     toast.error(message);
                 } finally {
@@ -729,25 +767,21 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
 
             resumeBatchTransferMonitoring: async (manual: boolean = false) => {
                 const { isTransferPending, isLoading, energyRental,
-                    batchTransfers, updateBatchTransfers, processStage, updateProcess,
-                    clearBatchTransfers, clearProcessStage, clearEnergyRental } = get();
+                    batchTransfers, updateBatchTransfers, processStage, updateProcess } = get();
                 const sender = useSenderStore.getState();
 
                 // 1. Pre-check
                 if (isLoading) return;
                 if (!isTransferPending("batch")) return;
                 if (sender.active.address && !!batchTransfers.fromAddress && sender.address !== batchTransfers.fromAddress) {
-                    clearBatchTransfers();
-                    clearProcessStage("batch");
-                    clearEnergyRental();
-                    toast.info("Cleared tasks from previous account.");
+                    toast.warning("Switch back to the original account to check this task.");
                     return;
                 }
 
                 // 2. Determine conditions
-                const canResumeApprovalMonitoring = ["approving", "approving-timeout"].includes(processStage.batch) && !!batchTransfers.txid;
+                const canResumeApprovalMonitoring = ["approving", "approving-timeout", "approving-unknown"].includes(processStage.batch) && !!batchTransfers.txid;
                 const canResumeEnergyMonitoring = ["renting-energy", "energy-timeout"].includes(processStage.batch);
-                const canResumeTransferMonitoring = ["confirming", "timeout"].includes(processStage.batch) && !!batchTransfers.txid;
+                const canResumeTransferMonitoring = ["confirming", "timeout", "confirmation-unknown"].includes(processStage.batch) && !!batchTransfers.txid;
 
                 if (!canResumeApprovalMonitoring && !canResumeTransferMonitoring && !canResumeEnergyMonitoring) {
                     if (manual) toast.info("No interrupted task found to resume.")
@@ -762,12 +796,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                         toast.info("Resuming batch transfer approval monitoring...");
                         const mode = sender.adapter ? "adapter" : "privateKey";
                         const tron = new TronFrontendService(mode, { network: batchTransfers.network as Network, privateKey: sender.privateKey, adapter: sender.adapter || undefined });
-                        const txConfirmed = await tron.pollTx({ txid: batchTransfers.txid!, token: batchTransfers.token as "TRX" | "USDT" });
-                        if (!txConfirmed) {
-                            updateProcess({ batch: 'timeout' });
-                            toast.warning("Transaction confirmation timed out");
-                            return;
-                        }
+                        if (!await monitorTransaction(tron, "batch", batchTransfers.txid!, batchTransfers.token as "TRX" | "USDT", true)) return;
                         updateProcess({ batch: 'idle' });
                         updateBatchTransfers({ txid: undefined });
                         toast.success("Approval confirmed! Please proceed with Transfer immediately.");
@@ -795,17 +824,12 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                         toast.info("Resuming batch transaction confirmation monitoring...");
                         const mode = sender.adapter ? "adapter" : "privateKey";
                         const tron = new TronFrontendService(mode, { network: batchTransfers.network as Network, privateKey: sender.privateKey, adapter: sender.adapter || undefined });
-                        const txConfirmed = await tron.pollTx({ txid: batchTransfers.txid!, token: batchTransfers.token as "TRX" | "USDT" });
-                        if (!txConfirmed) {
-                            updateProcess({ batch: 'timeout' });
-                            toast.warning("Transaction confirmation timed out");
-                            return;
-                        }
+                        if (!await monitorTransaction(tron, "batch", batchTransfers.txid!, batchTransfers.token as "TRX" | "USDT")) return;
                         updateProcess({ batch: 'confirmed' });
                     }
                 } catch (error) {
                     const message = (error as Error).message;
-                    updateProcess({ batch: 'failed' });
+                    updateProcess({ batch: canResumeApprovalMonitoring ? 'approving-unknown' : canResumeTransferMonitoring ? 'confirmation-unknown' : 'energy-timeout' });
                     updateBatchTransfers({ error: message });
                     toast.error(message);
                 } finally {
@@ -842,6 +866,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
         partialize: (state) => ({
             processStage: state.processStage,
             energyRental: state.energyRental,
+            stoppedTransfers: state.stoppedTransfers,
             singleTransferData: {
                 ...state.singleTransferData,
                 privateKey: ''
@@ -853,3 +878,20 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
         }),
     })
 );
+
+// Keep query failures pending; only an explicit chain result can fail a sent transaction.
+async function monitorTransaction(tron: TronFrontendService, type: "single" | "batch", txid: string, token: "TRX" | "USDT", approval = false): Promise<boolean> {
+    const result = await tron.pollTx({ txid, token });
+    const { updateProcess, updateSingleTransfer, updateBatchTransfers } = useOperationStore.getState();
+    const updateTransfer = type === "single" ? updateSingleTransfer : updateBatchTransfers;
+    updateTransfer({ error: "reason" in result ? result.reason : undefined });
+    if (result.status === "confirmed") return true;
+
+    const stage: ProcessStage = result.status === "failed" ? "failed"
+        : result.status === "unknown" ? (approval ? "approving-unknown" : "confirmation-unknown")
+        : (approval ? "approving-timeout" : "timeout");
+    updateProcess({ [type]: stage });
+    if (result.status === "failed") toast.error(result.reason);
+    else toast.warning(result.status === "unknown" ? "Unable to check transaction result. Resume to check again." : "Transaction confirmation timed out");
+    return false;
+}

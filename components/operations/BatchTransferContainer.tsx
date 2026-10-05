@@ -43,14 +43,24 @@ export const BatchTransferContainer = () => {
 
     const clearProcessStage = useOperationStore(state => state.clearProcessStage);
     const clearTransfers = useOperationStore(state => state.clearBatchTransfers);
-    const isTransferActive = useOperationStore(state => state.isTransferActive);
+    const clearEnergyRental = useOperationStore(state => state.clearEnergyRental);
+    const canClear = useOperationStore(state => state.canClearTransfer("batch"));
+    const transferPending = useOperationStore(state => state.isTransferPending("single") || state.isTransferPending("batch"));
     const isLoading = useOperationStore((state) => state.isLoading);
 
-    const disabled = isLoading || isTransferActive("single") || isTransferActive("batch");
+    const disabled = isLoading || transferPending;
     const confirmed = process === "confirmed";
+
+    const handleClear = () => {
+        if (!useOperationStore.getState().canClearTransfer("batch")) return;
+        clearTransfers();
+        clearProcessStage("batch");
+        clearEnergyRental();
+    };
 
     const MAX_BATCH_SIZE = 100;
     const handleUpload = async (data: { header?: string[]; data: unknown[] }) => {
+        if (useOperationStore.getState().isTransferPending("single") || useOperationStore.getState().isTransferPending("batch")) return;
         const expectedHeaders = ["Recipient_Address", "USDT"];
         if (!data.header?.every((word, i) => word === expectedHeaders[i])) {
             toast.warning("CSV header is incorrect. Ensure it matches the sample format.");
@@ -96,6 +106,7 @@ export const BatchTransferContainer = () => {
                     }
                 })
             const parsedData = await Promise.all(parsingPromises);
+            if (useOperationStore.getState().isTransferPending("single") || useOperationStore.getState().isTransferPending("batch")) return;
             const validData = parsedData.filter((item): item is { toAddress: string; amount: number; warning?: string } => item !== null);
             if (validData.length > 0) clearProcessStage("batch");
             const hasWarnings = validData.some(item => item.warning);
@@ -162,7 +173,7 @@ export const BatchTransferContainer = () => {
                     </p>
                 </div>
             }
-            {transfers.data?.length === 0 && (
+            {transfers.data?.length === 0 && !disabled && (
                 <CSVDropzone onDataParsed={(data) => { handleUpload(data); }} />
             )}
             {transfers.data && transfers.data.length > 0 && (
@@ -184,8 +195,8 @@ export const BatchTransferContainer = () => {
                         </div>
 
                         <div className="flex justify-between gap-x-2">
-                            <Button variant="outline" className="h-auto p-2 text-stone-400 hover:text-tangerine" onClick={clearTransfers}
-                                disabled={disabled}>
+                            <Button variant="outline" className="h-auto p-2 text-stone-400 hover:text-tangerine" onClick={handleClear}
+                                disabled={!canClear}>
                                 <ReplaceAll /> Clear List
                             </Button>
                             <Dialog>
