@@ -10,6 +10,7 @@ import { CheckAddressContainer } from "./CheckAddressContainer";
 import { TransferRecordsContainer } from "./TransferRecordsContainer";
 import { SingleTransferContainer } from "./SingleTransferContainer";
 import { BatchTransferContainer } from "./BatchTransferContainer";
+import { StoppedTransfersContainer } from "./StoppedTransfersContainer";
 
 const TAB_OPTIONS = [
     { label: "Check Address", value: "check-address" },
@@ -34,6 +35,7 @@ export const OperationTabsContainer = () => {
                     <TabsContent value="batch-transfer"><BatchTransferContainer /></TabsContent>
                 </div>
             </Tabs>
+            <StoppedTransfersContainer />
         </article>
     );
 }

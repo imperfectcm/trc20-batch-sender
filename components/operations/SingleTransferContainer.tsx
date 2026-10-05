@@ -38,11 +38,11 @@ export const SingleTransferContainer = () => {
     const updateTransfer = useOperationStore(state => state.updateSingleTransfer);
     const simulateTransfer = useOperationStore(state => state.simulateSingleTransfer);
     const transferFlow = useOperationStore((state) => state.singleTransferFlow);
-    const isTransferActive = useOperationStore(state => state.isTransferActive);
+    const transferPending = useOperationStore(state => state.isTransferPending("single") || state.isTransferPending("batch"));
     const isLoading = useOperationStore((state) => state.isLoading);
     const process = useOperationStore(state => state.processStage.single);
 
-    const disabled = isLoading || isTransferActive("single") || isTransferActive("batch");
+    const disabled = isLoading || transferPending;
     const confirmed = process === "confirmed";
 
     const handleTriggleEnergyRental = () => {
