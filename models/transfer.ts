@@ -11,10 +11,10 @@ export const ADDRESS_MAP: Record<string, Record<Network, string>> = {
         shasta: "TEzF63sbFzgSkg8nCZcXKWu6UvzziVoPzx"
     }
 }
-export const TRONZAP_ADDRESS = "TQssuzjvQbqtmEjmd9sGHuBQMdpvrCov3h";
+export const TRONZAP_ADDRESS = "TKxaA5Ni1d2azLDQ2GvrVvHsou9J9M1d32";
 export const RENTAL_PACKAGES = [
-    { energy: 131000, price: 5.50, id: 'premium' },
-    { energy: 65000, price: 3.00, id: 'standard' }
+    { energy: 131000, price: 4.90, id: 'premium' },
+    { energy: 65000, price: 2.45, id: 'standard' }
 ] as const;
 
 export type ProcessStage = '' | 'idle' | 'approving' | 'estimating-energy' | 'renting-energy' | 'broadcasting' | 'confirming' | 'confirmed' | 'failed' | 'timeout' | 'approving-timeout' | 'energy-timeout';

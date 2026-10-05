@@ -2,7 +2,7 @@ import { API_ENDPOINTS, MAX_UINT256, Network } from "@/models/network";
 import { RENTAL_PACKAGES } from "@/models/transfer";
 import { api } from "@/utils/api";
 import { SignedTransaction, Transaction } from "@tronweb3/tronwallet-abstract-adapter";
-import { TronLinkAdapter } from "@tronweb3/tronwallet-adapters";
+import type { TronLinkAdapter } from "@tronweb3/tronwallet-adapters";
 import { BigNumber, TronWeb } from "tronweb";
 
 class TronFrontendService {
@@ -16,13 +16,16 @@ class TronFrontendService {
     private static MAX_UINT256 = MAX_UINT256;
     private static RENTAL_PACKAGES = RENTAL_PACKAGES;
 
-    constructor(mode: 'adapter' | 'privateKey', config: { network: Network, privateKey?: string }) {
+    constructor(mode: 'adapter' | 'privateKey', config: { network: Network, privateKey?: string, adapter?: TronLinkAdapter }) {
         this.tronWeb = new TronWeb({
             fullHost: TronFrontendService.API_ENDPOINTS[config.network],
         });
 
         if (mode === 'adapter') {
-            this.adapter = new TronLinkAdapter();
+            if (!config.adapter) {
+                throw new Error("Wallet adapter is not available");
+            }
+            this.adapter = config.adapter;
         } else if (mode === 'privateKey' && config.privateKey) {
             this.privateKey = config.privateKey;
             this.tronWeb.setPrivateKey(config.privateKey);
