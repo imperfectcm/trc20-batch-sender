@@ -1,5 +1,5 @@
 import { API_ENDPOINTS, MAX_UINT256, Network } from "@/models/network";
-import { RENTAL_PACKAGES } from "@/models/transfer";
+import { RENTAL_PACKAGES, type PollTxResult } from "@/models/transfer";
 import { api } from "@/utils/api";
 import { SignedTransaction, Transaction } from "@tronweb3/tronwallet-abstract-adapter";
 import type { TronLinkAdapter } from "@tronweb3/tronwallet-adapters";
@@ -106,23 +106,34 @@ class TronFrontendService {
     }
 
     // Check transaction confirmation status
-    async pollTx(payload: { txid: string, token: "TRX" | "USDT", maxAttempts?: number }): Promise<boolean> {
+    async pollTx(payload: { txid: string, token: "TRX" | "USDT", maxAttempts?: number }): Promise<PollTxResult> {
         const { txid, token, maxAttempts = 36 } = payload;
         for (let i = 0; i < maxAttempts; i++) {
-            const info = await this.tronWeb.trx.getTransactionInfo(txid);
-            if (token === "TRX" && info && info.blockNumber) {
-                return true; // TRX transfer is confirmed if blockNumber exists
-            }
-            if (info && info.receipt?.result) {
-                if (info.receipt.result === 'SUCCESS') {
-                    return true;
-                } else {
-                    throw new Error(`Transaction reverted: ${info.receipt.result}`);
+            let info: Awaited<ReturnType<typeof this.tronWeb.trx.getTransactionInfo>> | undefined;
+            try {
+                info = await this.tronWeb.trx.getTransactionInfo(txid);
+            } catch (error) {
+                if (i === maxAttempts - 1) {
+                    return { status: 'unknown', reason: error instanceof Error ? error.message : String(error) };
                 }
             }
-            await new Promise(res => setTimeout(res, this.timeslot));
+            if (info?.result === 'FAILED') {
+                return { status: 'failed', reason: info.resMessage || info.result };
+            }
+            if (info?.receipt?.result && info.receipt.result !== 'SUCCESS') {
+                return { status: 'failed', reason: info.receipt.result };
+            }
+            if (token === "TRX" && info && info.blockNumber) {
+                return { status: 'confirmed' }; // TRX transfer is confirmed if blockNumber exists
+            }
+            if (info?.receipt?.result === 'SUCCESS') {
+                return { status: 'confirmed' };
+            }
+            if (i < maxAttempts - 1) {
+                await new Promise(res => setTimeout(res, this.timeslot));
+            }
         }
-        return false;
+        return { status: 'timeout' };
     }
 
     async rentEnergy(payload: {

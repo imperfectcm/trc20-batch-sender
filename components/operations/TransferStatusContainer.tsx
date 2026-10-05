@@ -7,6 +7,9 @@ import { CopyButton } from "../ui/copy-button";
 import { Button } from "../ui/button";
 import { useReqDebounce } from "@/hooks/useReqDebounce";
 import { RefreshCw } from "lucide-react";
+import { useState } from "react";
+import { Input } from "../ui/input";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
 
 interface TransferStatusContainerProps {
     transferType?: "single" | "batch";
@@ -87,6 +90,8 @@ const BatchTransferInfoContainer = ({ batchTransfers, ringColor, txidColor }: { 
 }
 
 export const TransferStatusContainer = ({ transferType = "single" }: TransferStatusContainerProps) => {
+    const [stopDialogOpen, setStopDialogOpen] = useState(false);
+    const [stopConfirmation, setStopConfirmation] = useState("");
     const privateKeyActivated = useSenderStore(state => state.active.privateKey);
 
     const transferData = useOperationStore(state => state.singleTransferData);
@@ -100,8 +105,9 @@ export const TransferStatusContainer = ({ transferType = "single" }: TransferSta
     const clearProcessStage = useOperationStore(state => state.clearProcessStage);
     const clearEnergyRental = useOperationStore(state => state.clearEnergyRental);
 
-    const isTransferActive = useOperationStore((state) => state.isTransferActive);
     const isTransferPending = useOperationStore((state) => state.isTransferPending);
+    const canClear = useOperationStore((state) => state.canClearTransfer(transferType));
+    const canStopTracking = useOperationStore((state) => state.canStopTransferTracking(transferType));
     const resumeTransferMonitoring = useOperationStore((state) => state.resumeTransferMonitoring);
     const resumeBatchTransferMonitoring = useOperationStore((state) => state.resumeBatchTransferMonitoring);
 
@@ -118,16 +124,25 @@ export const TransferStatusContainer = ({ transferType = "single" }: TransferSta
     }
 
     const handleClearSingleTransfer = () => {
+        if (!useOperationStore.getState().canClearTransfer("single")) return;
         clearSingleTransfer();
         clearProcessStage("single");
         clearEnergyRental();
     }
 
     const handleClearBatchTransfers = () => {
+        if (!useOperationStore.getState().canClearTransfer("batch")) return;
         clearBatchTransfers();
         clearProcessStage("batch");
         clearEnergyRental();
     }
+
+    const handleStopTracking = () => {
+        if (useOperationStore.getState().stopTransferTracking(transferType, stopConfirmation)) {
+            setStopDialogOpen(false);
+            setStopConfirmation("");
+        }
+    };
 
     if (!privateKeyActivated) return null;
 
@@ -218,15 +233,28 @@ export const TransferStatusContainer = ({ transferType = "single" }: TransferSta
                 </>
             )}
 
-            {(isSingle ? ["energy-timeout", "timeout"] : ["approving-timeout", "energy-timeout", "timeout"]).includes(stage) && (
+            {(isSingle ? ["energy-timeout", "timeout", "confirmation-unknown"] : ["approving-timeout", "energy-timeout", "timeout", "confirmation-unknown", "approving-unknown"]).includes(stage) && (
                 <>
                     <section className="relative w-full flex justify-between items-center rounded-lg p-2 bg-stone-600">
-                        <p className="font-mono text-stone-200">Confirmation Progress Time-out</p>
+                        <p className="font-mono text-stone-200">
+                            {stage === "confirmation-unknown" ? "Transaction result unknown"
+                                : stage === "approving-unknown" ? "Approval result unknown"
+                                : stage === "energy-timeout" ? "Energy acquisition timed out"
+                                : stage === "approving-timeout" ? "Approval confirmation timed out"
+                                : "Transaction confirmation timed out"}
+                        </p>
                         <Button variant="ghost" size="sm" onClick={handleResumeFn}
+                            disabled={isLoading}
                             className="h-auto p-1 text-stone-400 hover:text-tangerine">
-                            Resume <RefreshCw size={16} />
+                            Check Again <RefreshCw size={16} />
                         </Button>
                     </section>
+                    {stage === "energy-timeout" && energyRental.txid && (
+                        <div className="flex gap-x-1 items-center text-sm">
+                            Rental Txid: <p>{energyRental.txid}</p>
+                            <CopyButton content={energyRental.txid} size="sm" variant="ghost" />
+                        </div>
+                    )}
                     <InfoContainer ringColor="ring-stone-400" txidColor="text-stone-400" />
                 </>
             )}
@@ -249,16 +277,47 @@ export const TransferStatusContainer = ({ transferType = "single" }: TransferSta
                 </>
             )}
 
-            {["timeout", "confirmed", "failed"].includes(stage) && (
+            {["confirmed", "failed", "energy-timeout", "estimating-energy"].includes(stage) && (
                 <aside className="w-full text-center mt-4">
                     <Button variant="outline"
-                        disabled={isLoading || isTransferActive(transferType)}
+                        disabled={!canClear}
                         className="bg-transparent text-stone-400 hover:text-tangerine"
                         onClick={handleClear}>
                         Clear Result
                     </Button>
                 </aside>
             )}
+
+            {canStopTracking && (
+                <aside className="w-full text-center mt-4">
+                    <Button variant="outline" className="bg-transparent text-stone-400 hover:text-tangerine"
+                        onClick={() => { setStopConfirmation(""); setStopDialogOpen(true); }}>
+                        Stop Tracking
+                    </Button>
+                </aside>
+            )}
+
+            <Dialog open={stopDialogOpen} onOpenChange={(open) => {
+                setStopDialogOpen(open);
+                setStopConfirmation("");
+            }}>
+                <DialogContent className="border-tangerine/60 max-sm:w-screen max-sm:text-sm">
+                    <DialogHeader>
+                        <DialogTitle>Stop tracking this transaction?</DialogTitle>
+                        <DialogDescription>
+                            The transaction may still succeed on-chain. This clears the form and stops monitoring, but cannot cancel the transaction. Sending again could pay twice.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <p className="text-sm text-stone-300">The Txid and recipients will stay in Stopped Tracking below. Type <strong>CANCEL</strong> to continue.</p>
+                    <Input aria-label="Type CANCEL to stop tracking" autoComplete="off" value={stopConfirmation}
+                        onChange={(event) => setStopConfirmation(event.target.value)} />
+                    <DialogFooter>
+                        <DialogClose asChild><Button variant="outline">Keep Tracking</Button></DialogClose>
+                        <Button variant="destructive" disabled={stopConfirmation !== "CANCEL" || !canStopTracking}
+                            onClick={handleStopTracking}>Stop Tracking</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {isLoading && (
                 <aside className="-z-10 absolute top-0 left-0 w-full h-full flex justify-center items-center opacity-30">
