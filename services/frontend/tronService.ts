@@ -107,7 +107,7 @@ class TronFrontendService {
 
     // Check transaction confirmation status
     async pollTx(payload: { txid: string, token: "TRX" | "USDT", maxAttempts?: number }): Promise<boolean> {
-        const { txid, token, maxAttempts = 24 } = payload;
+        const { txid, token, maxAttempts = 36 } = payload;
         for (let i = 0; i < maxAttempts; i++) {
             const info = await this.tronWeb.trx.getTransactionInfo(txid);
             if (token === "TRX" && info && info.blockNumber) {
