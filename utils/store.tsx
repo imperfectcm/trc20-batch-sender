@@ -377,6 +377,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                         fromAddress: sender.address,
                         txid: undefined,
                         error: undefined,
+                        notice: undefined,
                     });
                     clearEnergyRental();
 
@@ -526,6 +527,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                         token: get().batchTransfers.token,
                         txid: undefined,
                         error: undefined,
+                        notice: undefined,
                     });
 
                     // 3. Check allowance and approve if needed
@@ -599,6 +601,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                         token: get().batchTransfers.token,
                         txid: undefined,
                         error: undefined,
+                        notice: undefined,
                     });
                     clearEnergyRental();
 
@@ -740,9 +743,9 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                             toast.warning("Energy rental timed out.");
                         } else {
                             updateProcess({ single: 'idle' });
-                            updateSingleTransfer({ txid: undefined, error: undefined });
+                            updateSingleTransfer({ txid: undefined, error: undefined, notice: "Energy acquired. No transfer has been sent. Click Preview, then Send to continue." });
                             set({ energyRental: { ...energyRental, txid: undefined, isMonitoring: false, targetTier: undefined, cost: undefined } });
-                            toast.success("Energy acquired! Please submit Transfer again immediately.");
+                            toast.success("Energy acquired. Click Preview, then Send to continue.");
                         }
                         return;
                     }
@@ -812,9 +815,9 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                             toast.warning("Energy rental timed out.");
                         } else {
                             updateProcess({ batch: 'idle' });
-                            updateBatchTransfers({ txid: undefined, error: undefined });
+                            updateBatchTransfers({ txid: undefined, error: undefined, notice: "Energy acquired. No batch transfer has been sent. Click Preview, then Send to continue." });
                             set({ energyRental: { ...energyRental, txid: undefined, isMonitoring: false, targetTier: undefined, cost: undefined } });
-                            toast.success("Energy acquired! Please submit Transfer again immediately.");
+                            toast.success("Energy acquired. Click Preview, then Send to continue.");
                         }
                         return;
                     }

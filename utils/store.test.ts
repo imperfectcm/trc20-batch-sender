@@ -179,6 +179,36 @@ test('energy timeout UI preserves rental Txid and allows explicit clearing befor
     expect(clear.includes('disabled=""')).toBe(false);
 });
 
+for (const type of ['single', 'batch'] as const) {
+    test(`${type}: energy recovery displays a persistent notice without sending a payment`, async () => {
+        sender.setState({ profile: { energy: 100 } });
+        ops.getState().updateProcess({ [type]: 'energy-timeout' });
+        ops.getState().setEnergyRental({ targetTier: 100, txid: 'rental-tx' });
+        const originalInterval = globalThis.setInterval;
+        globalThis.setInterval = ((callback: () => void) => originalInterval(callback, 1)) as typeof setInterval;
+        try {
+            await (type === 'single' ? ops.getState().resumeTransferMonitoring(true) : ops.getState().resumeBatchTransferMonitoring(true));
+        } finally {
+            globalThis.setInterval = originalInterval;
+        }
+        expect(ops.getState().processStage[type]).toBe('idle');
+        expect(submissions).toBe(0);
+        expect(queries.length).toBe(0);
+        const saved = storage.get('op-store')!;
+        ops.setState({ singleTransferData: {}, batchTransfers: {} });
+        storage.set('op-store', saved);
+        await ops.persist.rehydrate();
+        Object.assign(sender.getInitialState(), sender.getState());
+        Object.assign(ops.getInitialState(), ops.getState());
+        const html = renderToStaticMarkup(createElement(TransferStatusContainer, { transferType: type }));
+        expect(html.includes(type === 'batch' ? 'No batch transfer has been sent.' : 'No transfer has been sent.')).toBe(true);
+        expect(html.includes('Click Preview, then Send to continue.')).toBe(true);
+        if (type === 'single') ops.getState().clearSingleTransfer();
+        else ops.getState().clearBatchTransfers();
+        expect((type === 'single' ? ops.getState().singleTransferData : ops.getState().batchTransfers).notice).toBe(undefined);
+    });
+}
+
 test('timed-out payment offers an explicit stop-tracking action', () => {
     ops.getState().updateProcess({ batch: 'timeout' });
     ops.getState().updateBatchTransfers({ txid: 'payment-tx' });
