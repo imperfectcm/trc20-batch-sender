@@ -149,6 +149,7 @@ export const TransferStatusContainer = ({ transferType = "single" }: TransferSta
     const isSingle = transferType === "single";
     const stage = processStage[transferType];
     const network = isSingle ? transferData.network : batchTransfers.network;
+    const notice = isSingle ? transferData.notice : batchTransfers.notice;
     const handleResumeFn = isSingle ? handleResume : handleBatchResume;
     const handleClear = isSingle ? handleClearSingleTransfer : handleClearBatchTransfers;
 
@@ -174,6 +175,7 @@ export const TransferStatusContainer = ({ transferType = "single" }: TransferSta
                 <>
                     <section className="rounded-lg p-2 bg-stone-800">
                         <p className="font-mono">Idle</p>
+                        {notice && <p role="status" className="mt-1 text-sm text-stone-300">{notice}</p>}
                     </section>
                     <InfoContainer ringColor="ring-stone-500" txidColor="text-stone-500" />
                 </>

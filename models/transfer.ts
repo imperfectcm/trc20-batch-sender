@@ -48,6 +48,7 @@ export type TransferReq = {
 export type TransferRes = {
     txid?: string;
     error?: string;
+    notice?: string;
 }
 
 export type SingleTransferData = TransferReq & TransferRes;
