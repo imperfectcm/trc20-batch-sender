@@ -1,8 +1,12 @@
+interface TokenBucket {
+    tokens: number;
+    updatedMs: number;
+}
+
 class RateLimitService {
-    private static requests: Array<bigint> = [];
-    private static dailyCounter: number = 0;
-    private static MAX_PER_SECOND = 15; // Tongrid free tier limit
-    private static MAX_PER_DAY = 100000; // Tongrid free tier limit
+    private readonly MAX_PER_SECOND = 5;
+    private readonly TOKEN_BURST = 10;
+    private tokenBucket: TokenBucket = { tokens: 0, updatedMs: Date.now() };
 
     private queue: Array<{
         fn: () => Promise<any>;
@@ -17,33 +21,27 @@ class RateLimitService {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    resetDailyCounter(): void {
-        RateLimitService.dailyCounter = 0;
-    }
+    private waitForQuota = async (): Promise<void> => {
+        while (true) {
+            const nowMs = Date.now();
+            const elapsedMs = Math.max(0, nowMs - this.tokenBucket.updatedMs);
 
-    private checkLimit = (): { allowed: true } | { allowed: false, reason: "daily" | "second" } => {
-        if (RateLimitService.dailyCounter >= RateLimitService.MAX_PER_DAY) {
-            return { allowed: false, reason: "daily" };
+            this.tokenBucket.tokens = Math.min(
+                this.TOKEN_BURST,
+                this.tokenBucket.tokens + elapsedMs / 1000 * this.MAX_PER_SECOND,
+            );
+            this.tokenBucket.updatedMs = nowMs;
+
+            if (this.tokenBucket.tokens >= 1) {
+                this.tokenBucket.tokens -= 1;
+                return;
+            }
+
+            const waitMs = Math.ceil(
+                (1 - this.tokenBucket.tokens) / this.MAX_PER_SECOND * 1000,
+            );
+            await this.sleep(waitMs);
         }
-
-        const now = process.hrtime.bigint();
-        const oneSecondAgo = now - BigInt(1_000_000_000);
-
-        while (RateLimitService.requests.length > 0 && RateLimitService.requests[0] < oneSecondAgo) {
-            RateLimitService.requests.shift();
-        }
-
-        if (RateLimitService.requests.length >= RateLimitService.MAX_PER_SECOND) {
-            return { allowed: false, reason: "second" };
-        }
-
-        return { allowed: true };
-    }
-
-    private recordRequest(): void {
-        const now = process.hrtime.bigint();
-        RateLimitService.requests.push(now);
-        RateLimitService.dailyCounter++;
     }
 
     executeWithQueue = async<T>(fn: () => Promise<T>): Promise<T> => {
@@ -61,32 +59,15 @@ class RateLimitService {
 
         try {
             while (this.queue.length > 0) {
-                const guard = this.checkLimit();
+                await this.waitForQuota();
 
-                if (!guard.allowed && guard.reason === "daily") {
-                    const error = new Error("Daily API request limit exceeded");
-                    while (this.queue.length > 0) {
-                        const task = this.queue.shift()!;
-                        task.reject(error);
-                    }
-                    return;
-                }
-
-                if (!guard.allowed && guard.reason === "second") {
-                    await this.sleep(1000);
-                    continue;
-                }
-
-                if (guard.allowed) {
-                    const task = this.queue.shift();
-                    if (task) {
-                        this.recordRequest();
-                        try {
-                            const result = await task.fn();
-                            task.resolve(result);
-                        } catch (error) {
-                            task.reject(error as Error);
-                        }
+                const task = this.queue.shift();
+                if (task) {
+                    try {
+                        const result = await task.fn();
+                        task.resolve(result);
+                    } catch (error) {
+                        task.reject(error as Error);
                     }
                 }
             }
