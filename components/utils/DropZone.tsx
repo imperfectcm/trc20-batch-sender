@@ -22,7 +22,7 @@ const CSVDropzone: React.FC<{ onDataParsed: (data: { header?: string[]; data: un
             const csv = e.target?.result as string;
             Papa.parse<unknown>(csv, {
                 header: true, // Assuming the CSV has a header row
-                dynamicTyping: true, // Attempt to convert numeric strings to numbers
+                dynamicTyping: false, // Preserve amount strings for decimal rounding
                 skipEmptyLines: true, // Skip empty lines in the CSV
                 complete: (results: ParseResult): void => {
                     onDataParsed({ header: results.meta?.fields, data: results.data });

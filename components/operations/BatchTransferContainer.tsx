@@ -19,6 +19,7 @@ import {
 import { useReqDebounce } from "@/hooks/useReqDebounce";
 import { Spinner } from "../ui/spinner";
 import { TransferStatusContainer } from "./TransferStatusContainer";
+import { BigNumber } from "tronweb";
 
 export const BatchTransferContainer = () => {
     const network = useSenderStore(state => state.network);
@@ -58,6 +59,18 @@ export const BatchTransferContainer = () => {
         clearEnergyRental();
     };
 
+    const roundedNum = (value: string, decimals = 2) => {
+        const input = value.trim();
+        if (!/^(?:(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d*)?|\.\d+)$/.test(input)) return NaN;
+
+        const parsed = new BigNumber(input.replace(/,/g, ""));
+        if (!parsed.isFinite() || parsed.lte(0)) return NaN;
+
+        const rounded = parsed.decimalPlaces(decimals, BigNumber.ROUND_HALF_UP);
+        const amount = rounded.toNumber();
+        return Number.isFinite(amount) && new BigNumber(amount).eq(rounded) ? amount : NaN;
+    };
+
     const MAX_BATCH_SIZE = 100;
     const handleUpload = async (data: { header?: string[]; data: unknown[] }) => {
         if (useOperationStore.getState().isTransferPending("single") || useOperationStore.getState().isTransferPending("batch")) return;
@@ -86,15 +99,14 @@ export const BatchTransferContainer = () => {
                         const toAddress = String(rawAddress || "").trim();
                         if (!toAddress) return null;
 
-                        const amountStr = String(rawAmount || "").replace(/,/g, "");
-                        const amount = parseFloat(amountStr);
+                        const amount = roundedNum(String(rawAmount ?? ""));
 
                         const isValidAddr = await validateAddress(toAddress);
                         if (!isValidAddr) {
                             return { toAddress, amount, warning: "Invalid address" };
                         }
 
-                        const isValidAmount = !Number.isNaN(amount) && amount > 0;
+                        const isValidAmount = Number.isFinite(amount) && amount > 0;
                         if (!isValidAmount) {
                             return { toAddress, amount, warning: "Invalid amount" };
                         }
