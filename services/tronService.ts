@@ -3,7 +3,7 @@ import { TronWeb } from "tronweb";
 import { Network } from "@/models/network";
 import { Account, AccountResource, TronGridTrc20Response, TronGridTrc20Transaction } from "@/models/tronResponse";
 import { rateLimiter } from "./rateLimitService";
-import { ADDRESS_MAP, ALLOWED_TOKENS, RENTAL_PACKAGES, TRONZAP_ADDRESS } from "@/models/transfer";
+import { ADDRESS_MAP, ALLOWED_TOKENS, RENTAL_PACKAGES, CATFEE_ADDRESS } from "@/models/transfer";
 import { Transaction } from '@tronweb3/tronwallet-abstract-adapter';
 import { API_ENDPOINTS } from "@/models/network";
 
@@ -15,7 +15,8 @@ class TronService {
     private static ALLOWED_TOKENS = ALLOWED_TOKENS;
     private static ADDRESS_MAP = ADDRESS_MAP;
 
-    private static TRONZAP_ADDRESS = TRONZAP_ADDRESS;
+    // private static TRONZAP_ADDRESS = TRONZAP_ADDRESS;
+    private static CATFEE_ADDRESS = CATFEE_ADDRESS;
     private static RENTAL_PACKAGES = RENTAL_PACKAGES;
 
     constructor() {
@@ -43,37 +44,6 @@ class TronService {
 
     // Validate TRON address
     validateAddress = (address: string): boolean => TronWeb.isAddress(address);
-
-    // Validate private key
-    validatePrivateKey = async (payload: { address: string, privateKey: string }): Promise<boolean> => {
-        const { address, privateKey } = payload;
-        if (!address) {
-            throw new Error("No address provided");
-        }
-
-        // In case of mnemonic phrase
-        if (privateKey.includes(" ")) {
-            try {
-                const account = TronWeb.fromMnemonic(privateKey);
-                const isValid = address === account.address;
-                return isValid;
-            } catch (error) {
-                throw new Error("Invalid mnemonic phrase");
-            }
-        }
-
-        const cleanKey = privateKey.replace(/^0x/, "");
-        if (cleanKey.length !== 64) {
-            throw new Error("Invalid private key length");
-        }
-        if (!/^[0-9a-fA-F]{64}$/.test(cleanKey)) {
-            throw new Error("Private key contains invalid characters");
-        }
-
-        const generatedAddress = TronWeb.address.fromPrivateKey(cleanKey);
-        const isValid = address === generatedAddress;
-        return isValid;
-    }
 
     // Get account info
     getAccount = async (payload: { network: Network, address: string }): Promise<Account> => {
@@ -209,7 +179,7 @@ class TronService {
         const res = await this.buildTrxTransfer({
             network,
             fromAddress: address,
-            toAddress: TronService.TRONZAP_ADDRESS,
+            toAddress: TronService.CATFEE_ADDRESS,
             amount: totalAmount,
         });
         return { unsignedTx: res.unsignedTx, message: 'Energy rental submitted. Confirmation usually takes 20-60 seconds.' };
