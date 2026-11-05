@@ -1,4 +1,4 @@
-import type { TronLinkAdapter } from '@tronweb3/tronwallet-adapters';
+import type { Adapter } from '@tronweb3/tronwallet-abstract-adapter';
 import type { PollTxResult } from '@/models/transfer';
 import TronFrontendService from '@/services/frontend/tronService';
 import { createElement } from 'react';
@@ -45,7 +45,7 @@ beforeEach(() => {
         return new Response(JSON.stringify({ success: true, data: true }));
     }) as typeof fetch;
     sender.setState({ network: 'mainnet', address, privateKey: '', active: { address: true, privateKey: true },
-        adapter: { connected: true, address } as TronLinkAdapter });
+        adapter: { connected: true, address } as Adapter });
     ops.setState({ isLoading: false, processStage: { single: '', batch: '' }, stoppedTransfers: [],
         energyRental: { enable: false, isMonitoring: false },
         singleTransferData: { network: 'mainnet', fromAddress: address, toAddress: address, amount: 1, token: 'USDT' },

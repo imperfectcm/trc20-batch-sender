@@ -1,28 +1,23 @@
 "use client";
 
-import { TronLinkAdapter, TronLinkAdapterName } from '@tronweb3/tronwallet-adapters';
 import { useWallet } from '@tronweb3/tronwallet-adapter-react-hooks';
 import { Button } from '../ui/button';
 import { useEffect } from 'react';
 import { useOperationStore, useSenderStore } from '@/utils/store';
 import { toast } from 'sonner';
-import { WalletReadyState } from '@tronweb3/tronwallet-abstract-adapter';
 import { Unplug } from 'lucide-react';
 
-export const WalletButtons = ({ readyState }: { readyState: WalletReadyState }) => {
-    // console.log("WalletButtons render, readyState:", readyState);
+export const WalletButtons = () => {
     const addressActivated = useSenderStore((state) => state.active.address);
     const connectAdapter = useSenderStore(state => state.connectAdapter);
     const disconnectAdapter = useSenderStore(state => state.disconnectAdapter);
 
     const operationLoading = useOperationStore((state) => state.isLoading);
     const isTransferActive = useOperationStore((state) => state.isTransferActive);
-    const disabled = operationLoading || isTransferActive("single") || isTransferActive("batch");
+    const { wallet, address, connect, disconnect, select, connected, connecting, disconnecting, wallets } = useWallet();
+    const adapter = wallet?.adapter;
+    const disabled = operationLoading || isTransferActive("single") || isTransferActive("batch") || connecting || disconnecting;
 
-    const { wallet, connect, disconnect, select, connected, wallets } = useWallet();
-    function onSelect() {
-        select(TronLinkAdapterName);
-    }
     const onConnect = async () => {
         try {
             await connect();
@@ -32,30 +27,38 @@ export const WalletButtons = ({ readyState }: { readyState: WalletReadyState }) 
     }
 
     useEffect(() => {
-        if (connected && wallet) {
-            connectAdapter(wallet.adapter as TronLinkAdapter);
+        if (connected && adapter && address) {
+            connectAdapter(adapter);
+        } else if (useSenderStore.getState().adapter) {
+            disconnectAdapter();
         }
-    }, [connected, wallet]);
+    }, [connected, adapter, address, connectAdapter, disconnectAdapter]);
 
-    const onDisconnect = () => {
-        disconnect();
-        disconnectAdapter();
+    const onDisconnect = async () => {
+        try {
+            await disconnect();
+            disconnectAdapter();
+        } catch (error) {
+            toast.warning((error as Error).message || "Failed to disconnect wallet");
+        }
     }
 
-    if (readyState !== WalletReadyState.Found || (!connected && addressActivated)) {
+    if (wallets.length === 0 || (!connected && addressActivated)) {
         return null;
     }
     return (
         <div className="text-sm space-y-2">
             {!connected
                 ?
-                <div className="flex gap-x-2">
+                <div className="flex flex-wrap gap-2">
                     {wallets.map((w) => (
                         <Button
                             key={w.adapter.name}
-                            variant="outline"
+                            variant={adapter === w.adapter ? "secondary" : "outline"}
                             className='h-auto p-2 text-stone-400 hover:text-tangerine'
-                            onClick={onSelect}
+                            onClick={() => select(w.adapter.name)}
+                            disabled={disabled}
+                            aria-pressed={adapter === w.adapter}
                         >
                             {w.adapter.name}
                         </Button>
@@ -69,7 +72,7 @@ export const WalletButtons = ({ readyState }: { readyState: WalletReadyState }) 
                 ?
                 <Button variant="outline" className='h-auto p-2 text-stone-400 hover:text-tangerine'
                     onClick={onConnect}
-                    disabled={disabled}
+                    disabled={disabled || !wallet}
                 >
                     Connect {wallet?.adapter.name || 'Wallet'}
                 </Button>

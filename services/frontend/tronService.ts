@@ -1,13 +1,12 @@
 import { API_ENDPOINTS, MAX_UINT256, Network } from "@/models/network";
 import { RENTAL_PACKAGES, type PollTxResult } from "@/models/transfer";
 import { api } from "@/utils/api";
-import { SignedTransaction, Transaction } from "@tronweb3/tronwallet-abstract-adapter";
-import type { TronLinkAdapter } from "@tronweb3/tronwallet-adapters";
+import type { Adapter, SignedTransaction, Transaction } from "@tronweb3/tronwallet-abstract-adapter";
 import { BigNumber, TronWeb } from "tronweb";
 
 class TronFrontendService {
     private tronWeb: TronWeb;
-    private adapter?: TronLinkAdapter;
+    private adapter?: Adapter;
     private privateKey?: string;
 
     private timeslot: number = 5000; // 5 seconds
@@ -16,7 +15,7 @@ class TronFrontendService {
     private static MAX_UINT256 = MAX_UINT256;
     private static RENTAL_PACKAGES = RENTAL_PACKAGES;
 
-    constructor(mode: 'adapter' | 'privateKey', config: { network: Network, privateKey?: string, adapter?: TronLinkAdapter }) {
+    constructor(mode: 'adapter' | 'privateKey', config: { network: Network, privateKey?: string, adapter?: Adapter }) {
         this.tronWeb = new TronWeb({
             fullHost: TronFrontendService.API_ENDPOINTS[config.network],
         });

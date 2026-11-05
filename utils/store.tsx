@@ -7,12 +7,12 @@ import { TronGridTrc20Transaction } from '@/models/tronResponse';
 import { api } from './api';
 import { pollEnergy } from './pollEnergy';
 import { BatchTransferData, ProcessStage, SingleTransferData, type StoppedTransfer } from '@/models/transfer';
-import { TronLinkAdapter } from '@tronweb3/tronwallet-adapters';
+import type { Adapter } from '@tronweb3/tronwallet-abstract-adapter';
 import { deriveCredentialAccount } from '@/services/frontend/credentialValidation';
 import TronFrontendService from '@/services/frontend/tronService';
 
 type SenderStates = {
-    adapter: TronLinkAdapter | null;
+    adapter: Adapter | null;
 
     pollInterval: NodeJS.Timeout | null;
     network: Network;
@@ -24,7 +24,7 @@ type SenderStates = {
 };
 
 type SenderActions = {
-    connectAdapter: (adapter: TronLinkAdapter) => Promise<void>;
+    connectAdapter: (adapter: Adapter) => Promise<void>;
     disconnectAdapter: () => void;
 
     setNetwork: (network: Network) => void;
@@ -555,7 +555,7 @@ export const useOperationStore = create<OperationStates & OperationActions>()(
                             description: (
                                 <div className="space-y-1 text-sm">
                                     <p>Spending cap required: <strong className='text-tangerine'>{totalAmount} USDT</strong></p>
-                                    <p>Please enter this amount in the TronLink spending cap field to proceed.</p>
+                                    <p>Review the approval amount in your wallet. If it offers a spending cap field, enter this amount to proceed.</p>
                                     <p className="text-muted-foreground">To avoid future approval fees, you may enter a larger amount (e.g. 1000000 USDT) to set a long-term spending limit.</p>
                                 </div>
                             ),
