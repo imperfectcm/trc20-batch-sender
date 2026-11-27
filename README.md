@@ -16,7 +16,7 @@ A web-based tool for performing batch TRC20 USDT transfers on the TRON blockchai
 - **Batch Transfers** — Send USDT to multiple recipients in a single contract call, saving time and reducing overhead
 - **Auto Energy Rental** — Automatically estimates required energy before transfer and rents it on-demand to minimize TRX burn as gas fees
 - **Resume Mechanism** — Automatically resumes interrupted transactions (energy rental, approval, or transfer confirmation) after page refresh or connection loss
-- **TronLink Integration** — Connect via TronLink wallet adapter for secure transaction signing without exposing private keys
+- **TRON Wallet Integration** — Detect and connect supported TRON wallet extensions for transaction signing without entering a private key
 - **Private Key Mode** — Alternative direct signing mode for automated or headless usage
 - **CSV Import** — Upload recipient lists via CSV file for bulk transfer preparation
 - **Simulate Before Send** — Estimate energy cost before committing to a transfer
@@ -32,16 +32,18 @@ A web-based tool for performing batch TRC20 USDT transfers on the TRON blockchai
 | UI Components | [shadcn/ui](https://ui.shadcn.com) + Tailwind CSS |
 | State Management | [Zustand](https://zustand-demo.pmnd.rs) (with localStorage persistence) |
 | CSV Parsing | [PapaParse](https://www.papaparse.com) + [ReactDropzone](https://www.npmjs.com/package/react-dropzone) |
-| Wallet | TronLink Adapter |
+| Wallet | TRON Wallet Adapters |
 
 ## Getting Started
 
 ### Prerequisites
 
 - [Bun](https://bun.sh) >= 1.0
-- A TronLink wallet (browser extension) or a TRON private key
+- A supported TRON wallet extension or a TRON private key
 - TronGrid API key (for Mainnet usage)
 - TronScan API key
+
+Supported extension adapters: TronLink, OKX Wallet, Bitget Wallet, Trust Wallet, TokenPocket, MetaMask (TRON), Binance Wallet, Bybit Wallet, Gate Wallet, OneKey, Backpack, and Guarda. Only wallets whose TRON provider is detected appear in the wallet selector; select a wallet, then click Connect. Compatibility depends on the installed wallet version and its TRON provider API. Supporting TRON assets alone does not guarantee dApp connectivity. WalletConnect and hardware-wallet connections are not configured.
 
 ### Installation
 
@@ -70,7 +72,7 @@ bun start
 
 ## Usage
 
-- **Activate an account** — Connect via TronLink adapter or enter a private key
+- **Activate an account** — Select and connect a detected TRON wallet or enter a private key
 
 - **Prepare recipients** — Manually enter addresses and amounts, or import a CSV file (sample CSV file could be found in public directory)
 
