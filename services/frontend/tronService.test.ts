@@ -1,4 +1,4 @@
-import type { TronLinkAdapter } from "@tronweb3/tronwallet-adapters";
+import type { Adapter, SignedTransaction, Transaction } from "@tronweb3/tronwallet-abstract-adapter";
 import TronFrontendService from "./tronService";
 
 declare function describe(name: string, fn: () => void): void;
@@ -13,7 +13,7 @@ describe("TronFrontendService adapter mode", () => {
     const adapter = {
       connected: true,
       address,
-    } as TronLinkAdapter;
+    } as Adapter;
 
     const service = new TronFrontendService("adapter", {
       network: "mainnet",
@@ -22,12 +22,62 @@ describe("TronFrontendService adapter mode", () => {
 
     expect(service.getAddress()).toBe(address);
   });
+
+  test("signs with the selected non-TronLink adapter", async () => {
+    const unsignedTx = { txID: "unsigned-tx" } as Transaction;
+    const signedTx = { ...unsignedTx, signature: ["wallet-signature"] } as SignedTransaction;
+    let signatures = 0;
+    const adapter = {
+      name: "OKX Wallet" as Adapter["name"],
+      connected: true,
+      address: "TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj",
+      signTransaction: async (transaction: Transaction) => {
+        expect(transaction).toBe(unsignedTx);
+        signatures++;
+        return signedTx;
+      },
+    } as Adapter;
+    const service = new TronFrontendService("adapter", { network: "mainnet", adapter });
+
+    expect(await service.sign(unsignedTx)).toBe(signedTx);
+    expect(signatures).toBe(1);
+  });
+
+  test("preserves a wallet rejection without retrying or using the private key", async () => {
+    const rejection = new Error("User rejected the request");
+    let signatures = 0;
+    const adapter = {
+      name: "Trust" as Adapter["name"],
+      connected: true,
+      address: "TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj",
+      signTransaction: async (_transaction: Transaction): Promise<SignedTransaction> => {
+        signatures++;
+        throw rejection;
+      },
+    } as Adapter;
+    const service = new TronFrontendService("adapter", {
+      network: "mainnet", adapter, privateKey: "1".padStart(64, "0"),
+    });
+    let privateKeySignatures = 0;
+    const trx = (service as unknown as { tronWeb: { trx: object } }).tronWeb.trx;
+    Object.defineProperty(trx, "sign", { value: async () => { privateKeySignatures++; } });
+
+    let caught: unknown;
+    try {
+      await service.sign({ txID: "unsigned-tx" } as Transaction);
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBe(rejection);
+    expect(signatures).toBe(1);
+    expect(privateKeySignatures).toBe(0);
+  });
 });
 
 function pollingService(query: (txid: string) => Promise<unknown>) {
   const service = new TronFrontendService("adapter", {
     network: "mainnet",
-    adapter: { connected: true, address: "TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj" } as TronLinkAdapter,
+    adapter: { connected: true, address: "TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj" } as Adapter,
   });
   const trx = (service as unknown as { tronWeb: { trx: object } }).tronWeb.trx;
   Object.defineProperty(trx, "getTransactionInfo", { value: query });

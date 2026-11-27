@@ -1,6 +1,6 @@
 import { Network } from "@/models/network";
 import { TronWeb } from "tronweb";
-import { TronLinkAdapter } from '@tronweb3/tronwallet-adapters';
+import type { Adapter } from '@tronweb3/tronwallet-abstract-adapter';
 
 export interface ISigner {
     getAddress(): string;
@@ -38,9 +38,9 @@ class PrivateKeySigner implements ISigner {
 
 class AdapterSigner implements ISigner {
     private tronWeb: TronWeb;
-    private adapter: TronLinkAdapter;
+    private adapter: Adapter;
 
-    constructor(network: Network, adapter: TronLinkAdapter) {
+    constructor(network: Network, adapter: Adapter) {
         this.adapter = adapter;
         this.tronWeb = new TronWeb({
             fullHost: network === 'mainnet'
